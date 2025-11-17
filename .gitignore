@@ -1,0 +1,31 @@
+# ========================================
+# File .gitignore per il Progetto C++/CMake
+# ========================================
+
+# Ignora la cartella di build di CMake
+/build/
+
+# Ignora i file di log e output del cluster
+/logs/*.log
+/logs/*.err
+/logs/*.out
+!/logs/.gitkeep
+
+# Ignora i file di risultati (se decidi di non caricarli)
+# Commenta questa riga se VUOI caricare i .csv
+# /results/*.csv
+
+# Ignora l'eseguibile finale
+# (Metti il nome del tuo eseguibile)
+spmv_benchmark
+
+# Ignora file oggetto e librerie
+*.o
+*.a
+*.so
+
+# Ignora file di sistema macOS
+.DS_Store
+
+# Ignora file di VS Code
+.vscode/
