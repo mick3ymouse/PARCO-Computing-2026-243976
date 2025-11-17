@@ -1,31 +1,32 @@
-# ========================================
-# File .gitignore per il Progetto C++/CMake
-# ========================================
-
-# Ignora la cartella di build di CMake
+# Ignore the CMake build folder
 /build/
 
-# Ignora i file di log e output del cluster
+# Ignore cluster log and output files
 /logs/*.log
 /logs/*.err
 /logs/*.out
 !/logs/.gitkeep
 
-# Ignora i file di risultati (se decidi di non caricarli)
-# Commenta questa riga se VUOI caricare i .csv
+# Ignore matrix files
+/matrices/*.mtx
+
+# Ignore results files (if you decide not to upload them)
+# Comment out this line if you WANT to upload .csv files
 # /results/*.csv
 
-# Ignora l'eseguibile finale
-# (Metti il nome del tuo eseguibile)
+# Ignore the final executable
+# (Put the name of your executable)
 spmv_benchmark
 
-# Ignora file oggetto e librerie
+# Ignore object files and libraries
 *.o
 *.a
 *.so
 
-# Ignora file di sistema macOS
+# Ignore macOS system files
 .DS_Store
 
-# Ignora file di VS Code
+# Ignore VS Code files
 .vscode/
+
+Translated with DeepL.com (free version)
