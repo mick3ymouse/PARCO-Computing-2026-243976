@@ -1,0 +1,205 @@
+#!/bin/bash
+#PBS -N spmv_timings
+#PBS -l select=1:ncpus=64:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -q short_cpuQ
+#PBS -o logs/benchmark_timings.log
+#PBS -e logs/benchmark_timings.err
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+# ======================================
+# CONFIGURATION
+# ======================================
+
+# Output file setup
+TIMINGS_FILE="results/benchmark_timings.csv"
+rm -f $TIMINGS_FILE
+export TIMINGS_FILE
+
+# Matrix directory validation
+MATRICES_DIR="matrices"
+if [ ! -d "$MATRICES_DIR" ]; then
+    echo "ERROR: Matrices directory '$MATRICES_DIR' not found!"
+    exit 1
+fi
+
+# Executable
+EXEC="./build/spmv_benchmark"
+
+# Test matrices
+MATRICES=("$MATRICES_DIR"/*.mtx)
+
+# Thread counts
+THREADS=(2 4 8 16 32 64) 
+
+# Schedule configurations (kind,chunk_size)
+SCHEDULES=(
+    "static,1"
+    "static,10"
+    "static,100"
+    "static,1000"
+    "dynamic,1"
+    "dynamic,10"
+    "dynamic,100"
+    "dynamic,1000"
+    "guided,1"
+    "guided,10"
+    "guided,100"
+    "guided,1000"
+)
+
+# Environment variables
+export OMP_DYNAMIC=FALSE
+export BENCHMARK="timings"
+export TIMINGS_RUNS=10
+
+echo "============================================================"
+echo "  Sparse Matrix-Vector Multiplication - Timings Benchmark"
+echo "============================================================"
+echo "Start time: $(date)"
+echo "Node: $(hostname)"
+echo ""
+
+# ======================================
+# SEQUENTIAL BENCHMARKS
+# ======================================
+echo ""
+echo "=========================================="
+echo "  SEQUENTIAL BENCHMARKS"
+echo "=========================================="
+echo ""
+
+export MODE="sequential"
+
+for matrix in "${MATRICES[@]}";
+do
+    if [ ! -f "$matrix" ]; then
+        echo "WARNING: $matrix not found, skipping"
+        continue
+    fi
+    
+    echo ">>> Matrix: $(basename $matrix)"
+    echo ""
+    export MATRIX_FILE="$matrix"
+    $EXEC
+    echo "    Benchmark complete!"
+    echo ""
+done
+
+# ======================================
+# PARALLEL BENCHMARKS
+# ======================================
+echo ""
+echo "=========================================="
+echo "  PARALLEL BENCHMARKS"
+echo "=========================================="
+echo ""
+
+export MODE="parallel"
+
+for matrix in "${MATRICES[@]}";
+do
+    if [ ! -f "$matrix" ]; then
+        echo "WARNING: $matrix not found, skipping"
+        continue
+    fi
+    
+    export MATRIX_FILE="$matrix"
+    
+    echo ">>> Matrix: $(basename $matrix)"
+    echo ""
+    
+    for threads in "${THREADS[@]}";
+    do
+        export OMP_NUM_THREADS=$threads
+        
+        echo "  >> Threads: $threads"
+        echo ""
+        
+        for schedule in "${SCHEDULES[@]}";
+        do
+            IFS=',' read -r sched_kind chunk <<< "$schedule"
+            
+            export OMP_SCHEDULE="${sched_kind},${chunk}"
+            export LOG_SCHED_KIND="$sched_kind"
+            export LOG_SCHED_CHUNK="$chunk" 
+          
+            echo "     > Schedule: $sched_kind, Chunk: $chunk"
+            $EXEC
+            echo "       Benchmark complete!"
+        done
+        echo ""
+    done
+    
+    echo ""
+done
+
+# ======================================
+# SUMMARY GENERATION
+# ======================================
+echo ""
+echo "=========================================="
+echo "  Benchmark Timings Complete!"
+echo "=========================================="
+echo "End time: $(date)"
+echo "Results saved to: $TIMINGS_FILE"
+echo ""
+echo ">>> Generating system summary..."
+
+LSCPU_OUTPUT=$(lscpu 2>/dev/null)
+FREE_OUTPUT=$(free -h 2>/dev/null)
+OS_VERSION=$(uname -r)
+
+# Helper function to parse system info
+parse_output() {
+    local output_data=$1
+    local pattern=$2
+    echo "$output_data" | grep -i "$pattern" | awk -F ':' '{print $2}' | sed 's/^[ \t]*//'
+}
+
+# Create summary file
+{
+    echo "=============================="
+    echo "  Benchmark Timings Summary"
+    echo "=============================="
+    echo "Date: $(date)"
+    echo ""
+    echo "--------------------------------"
+    echo "  System Configuration"
+    echo "--------------------------------"
+    echo ""
+    echo "Node:             $(hostname)"
+    echo "Operating System: $OS_VERSION"
+    echo ""
+    echo "CPU Model:        $(parse_output "$LSCPU_OUTPUT" "Model name")"
+    echo "Socket(s):        $(parse_output "$LSCPU_OUTPUT" "^Socket(s):")"
+    echo "NUMA node(s):     $(parse_output "$LSCPU_OUTPUT" "^NUMA node(s):")"
+    echo "Core(s)/Socket:   $(parse_output "$LSCPU_OUTPUT" "^Core(s) per socket:")"
+    echo "Total Cores:      $(parse_output "$LSCPU_OUTPUT" "^CPU(s):")"
+    echo "Thread(s)/Core:   $(parse_output "$LSCPU_OUTPUT" "^Thread(s) per core:")"
+    echo "L1d Cache:        $(parse_output "$LSCPU_OUTPUT" "L1d cache")"
+    echo "L1i Cache:        $(parse_output "$LSCPU_OUTPUT" "L1i cache")"
+    echo "L2 Cache:         $(parse_output "$LSCPU_OUTPUT" "L2 cache")"
+    echo "L3 Cache:         $(parse_output "$LSCPU_OUTPUT" "L3 cache")"
+    echo "Total Memory:     $(echo "$FREE_OUTPUT" | grep 'Mem:' | awk '{print $2}')"
+    echo ""
+    echo "--------------------------------"
+    echo "  Benchmark Configuration"
+    echo "--------------------------------"
+    echo ""
+    echo "Matrices tested:"
+    for matrix in "${MATRICES[@]}";
+    do
+        if [ -f "$matrix" ]; then
+            echo "  - $(basename $matrix)"
+        fi
+    done
+    echo ""
+    echo "Thread counts: ${THREADS[*]}"
+    echo ""
+    echo "Timings results file: $TIMINGS_FILE"
+} > results/summary_timings.txt
+
+echo "Summary saved to: results/summary_timings.txt"

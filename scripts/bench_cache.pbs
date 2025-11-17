@@ -1,0 +1,298 @@
+#!/bin/bash
+#PBS -N spmv_cache
+#PBS -l select=1:ncpus=64:mem=8gb
+#PBS -l walltime=02:00:00
+#PBS -q short_cpuQ
+#PBS -o logs/benchmark_cache.log
+#PBS -e logs/benchmark_cache.err
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+# ======================================
+# MODULE LOADING
+# ======================================
+echo ">>> Loading required modules..."
+if ! module list 2>&1 | grep -q "perf"; then
+    echo "    Loading perf..."
+    module load perf
+    
+    if [ $? -ne 0 ]; then
+        echo "    ERROR: Failed to load perf."
+        exit 1
+    fi
+else
+    echo "    perf is already loaded."
+fi
+
+# ======================================
+# CONFIGURATION
+# ======================================
+
+# Output file setup
+CACHE_FILE="results/benchmark_cache.csv"
+rm -f $CACHE_FILE 
+echo Mode,Matrix,Threads,Schedule,ChunkSize,Avg_IPC,Avg_L1_Loads,Avg_L1_Misses,Avg_LLC_Loads,Avg_LLC_Misses > $CACHE_FILE
+
+# Matrix directory validation
+MATRICES_DIR="matrices"
+if [ ! -d "$MATRICES_DIR" ]; then
+    echo "ERROR: Matrices directory '$MATRICES_DIR' not found!"
+    exit 1
+fi
+
+# Executable
+EXEC="./build/spmv_benchmark"
+
+# Test matrices
+MATRICES=("$MATRICES_DIR"/*.mtx)
+
+# Thread counts
+THREADS=(2 4 8 16 32 64) 
+
+# Schedule configurations (kind,chunk_size)
+SCHEDULES=(
+    "static,1"
+    "static,10"
+    "static,100"
+    "static,1000"
+    "dynamic,1"
+    "dynamic,10"
+    "dynamic,100"
+    "dynamic,1000"
+    "guided,1"
+    "guided,10"
+    "guided,100"
+    "guided,1000"
+)
+
+# Environment variables
+export OMP_DYNAMIC=FALSE
+export BENCHMARK="cache"
+export CACHE_RUNS=5
+
+echo "=========================================================="
+echo "  Sparse Matrix-Vector Multiplication - Cache Benchmark"
+echo "=========================================================="
+echo "Start time: $(date)"
+echo "Node: $(hostname)"
+echo ""
+
+# ======================================
+# CACHE STATISTICS FUNCTION
+# ======================================
+calc_cache_stats() {
+    # Initialize accumulators
+    local total_instructions=0
+    local total_cycles=0
+    local total_l1_load=0
+    local total_l1_miss=0
+    local total_llc_load=0
+    local total_llc_miss=0
+
+    # Run benchmark multiple times
+    local r result
+    local inst cycles
+    local l1_loads l1_misses
+    local llc_loads llc_misses
+
+    for ((r=1; r<=CACHE_RUNS; r++)); 
+    do      
+        echo "         Cache Run: $r of $CACHE_RUNS"
+        
+        # Execute perf stat with specified counters
+        result=$(perf stat -x, \
+                           -e instructions \
+                           -e cycles \
+                           -e L1-dcache-loads \
+                           -e L1-dcache-load-misses \
+                           -e LLC-loads \
+                           -e LLC-load-misses \
+                           $EXEC 2>&1 >/dev/null)
+
+        # Extract metrics from CSV output
+        inst=$(echo "$result" | awk -F, '$3 == "instructions:u" {print $1}')
+        cycles=$(echo "$result" | awk -F, '$3 == "cycles:u" {print $1}')
+        l1_loads=$(echo "$result" | awk -F, '$3 == "L1-dcache-loads:u" {print $1}')
+        l1_misses=$(echo "$result" | awk -F, '$3 == "L1-dcache-load-misses:u" {print $1}')
+        llc_loads=$(echo "$result" | awk -F, '$3 == "LLC-loads:u" {print $1}')
+        llc_misses=$(echo "$result" | awk -F, '$3 == "LLC-load-misses:u" {print $1}')
+
+        # Default to 0 if missing
+        inst=${inst:-0}
+        cycles=${cycles:-0}
+        l1_loads=${l1_loads:-0}
+        l1_misses=${l1_misses:-0}
+        llc_loads=${llc_loads:-0}
+        llc_misses=${llc_misses:-0}
+
+        # Accumulate totals
+        total_instructions=$(echo "$total_instructions + $inst" | bc -l)
+        total_cycles=$(echo "$total_cycles + $cycles" | bc -l)
+        total_l1_load=$(echo "$total_l1_load + $l1_loads" | bc -l)
+        total_l1_miss=$(echo "$total_l1_miss + $l1_misses" | bc -l)
+        total_llc_load=$(echo "$total_llc_load + $llc_loads" | bc -l)
+        total_llc_miss=$(echo "$total_llc_miss + $llc_misses" | bc -l)
+    done
+
+    # Calculate average IPC
+    local avg_ipc="0.00"
+    if [ $(echo "$total_cycles > 0" | bc -l) -eq 1 ]; then
+        avg_ipc=$(echo "scale=4; $total_instructions / $total_cycles" | bc -l)
+    fi
+
+    # Calculate averages
+    local avg_l1_load=$(echo "scale=2; $total_l1_load / $CACHE_RUNS" | bc -l)
+    local avg_l1_miss=$(echo "scale=2; $total_l1_miss / $CACHE_RUNS" | bc -l)
+    local avg_llc_load=$(echo "scale=2; $total_llc_load / $CACHE_RUNS" | bc -l)
+    local avg_llc_miss=$(echo "scale=2; $total_llc_miss / $CACHE_RUNS" | bc -l)
+    
+    # Display results
+    echo "         Average IPC: $avg_ipc"
+    echo "         Average L1 Loads: $avg_l1_load"
+    echo "         Average L1 Misses: $avg_l1_miss"
+    echo "         Average LLC Loads: $avg_llc_load"
+    echo "         Average LLC Misses: $avg_llc_miss"
+    
+    # Write to CSV
+    echo "$MODE,$(basename $MATRIX_FILE),$num_threads,$sched_kind,$chunk_size,$avg_ipc,$avg_l1_load,$avg_l1_miss,$avg_llc_load,$avg_llc_miss" >> $CACHE_FILE
+    echo "         Benchmark complete!"
+}
+
+# ======================================
+# SEQUENTIAL BENCHMARKS
+# ======================================
+echo ""
+echo "=========================================="
+echo "  SEQUENTIAL BENCHMARKS"
+echo "=========================================="
+echo ""
+
+export MODE="sequential"
+num_threads=1
+sched_kind="NaN"
+chunk_size="NaN"
+
+for matrix in "${MATRICES[@]}";
+do
+    if [ ! -f "$matrix" ]; then
+        echo "WARNING: $matrix not found, skipping"
+        continue
+    fi
+    
+    echo ">>> Matrix: $(basename $matrix)"
+    echo ""
+    export MATRIX_FILE="$matrix"
+    calc_cache_stats
+    echo ""
+done
+
+# ======================================
+# PARALLEL BENCHMARKS
+# ======================================
+echo ""
+echo "=========================================="
+echo "  PARALLEL BENCHMARKS"
+echo "=========================================="
+echo ""
+
+export MODE="parallel"
+
+for matrix in "${MATRICES[@]}";
+do  
+    if [ ! -f "$matrix" ]; then
+        echo "WARNING: $matrix not found, skipping"
+        continue
+    fi
+    
+    echo ">>> Matrix: $(basename $matrix)"
+    echo ""
+    export MATRIX_FILE="$matrix"
+
+    for threads in "${THREADS[@]}";
+    do
+        num_threads=$threads
+        export OMP_NUM_THREADS=$threads
+        
+        echo "  >> Threads: $threads"
+        echo ""
+        
+        for schedule in "${SCHEDULES[@]}";
+        do
+            IFS=',' read -r sched_kind chunk_size <<< "$schedule"
+            export OMP_SCHEDULE="${sched_kind},${chunk_size}"
+            echo "     > Schedule: $sched_kind, Chunk: $chunk_size"
+            calc_cache_stats
+        done
+        echo ""
+    done
+    echo ""
+done
+
+# ======================================
+# SUMMARY GENERATION
+# ======================================
+echo ""
+echo "=========================================="
+echo "  Benchmark Cache Complete!"
+echo "=========================================="
+echo "End time: $(date)"
+echo "Results saved to: $CACHE_FILE"
+echo ""
+echo ">>> Generating system summary..."
+
+LSCPU_OUTPUT=$(lscpu 2>/dev/null)
+FREE_OUTPUT=$(free -h 2>/dev/null)
+OS_VERSION=$(uname -r)
+
+# Helper function to parse system info
+parse_output() {
+    local output_data=$1
+    local pattern=$2
+    echo "$output_data" | grep -i "$pattern" | awk -F ':' '{print $2}' | sed 's/^[ \t]*//'
+}
+
+# Create summary file
+{
+    echo "============================"
+    echo "  Benchmark Cache Summary"
+    echo "============================"
+    echo "Date: $(date)"
+    echo ""
+    echo "--------------------------------"
+    echo "  System Configuration"
+    echo "--------------------------------"
+    echo ""
+    echo "Node:             $(hostname)"
+    echo "Operating System: $OS_VERSION"
+    echo ""
+    echo "CPU Model:        $(parse_output "$LSCPU_OUTPUT" "Model name")"
+    echo "Socket(s):        $(parse_output "$LSCPU_OUTPUT" "^Socket(s):")"
+    echo "NUMA node(s):     $(parse_output "$LSCPU_OUTPUT" "^NUMA node(s):")"
+    echo "Core(s)/Socket:   $(parse_output "$LSCPU_OUTPUT" "^Core(s) per socket:")"
+    echo "Total Cores:      $(parse_output "$LSCPU_OUTPUT" "^CPU(s):")"
+    echo "Thread(s)/Core:   $(parse_output "$LSCPU_OUTPUT" "^Thread(s) per core:")"
+    echo "L1d Cache:        $(parse_output "$LSCPU_OUTPUT" "L1d cache")"
+    echo "L1i Cache:        $(parse_output "$LSCPU_OUTPUT" "L1i cache")"
+    echo "L2 Cache:         $(parse_output "$LSCPU_OUTPUT" "L2 cache")"
+    echo "L3 Cache:         $(parse_output "$LSCPU_OUTPUT" "L3 cache")"
+    echo "Total Memory:     $(echo "$FREE_OUTPUT" | grep 'Mem:' | awk '{print $2}')"
+    echo ""
+    echo "--------------------------------"
+    echo "  Benchmark Configuration"
+    echo "--------------------------------"
+    echo ""
+    echo "Matrices tested:"
+    for matrix in "${MATRICES[@]}";
+    do
+        if [ -f "$matrix" ]; then
+            echo "  - $(basename $matrix)"
+        fi
+    done
+    echo ""
+    echo "Thread counts: ${THREADS[*]}"
+    echo ""
+    echo "Cache results file: $CACHE_FILE"
+} > results/summary_cache.txt
+
+echo "Summary saved to: results/summary_cache.txt"
