@@ -48,22 +48,28 @@ EXEC="./build/spmv_benchmark"
 MATRICES=("$MATRICES_DIR"/*.mtx)
 
 # Thread counts
-THREADS=(2 4 8 16 32 64) 
+THREADS=(4 8 16 32) 
 
 # Schedule configurations (kind,chunk_size)
 SCHEDULES=(
     "static,1"
-    "static,10"
-    "static,100"
-    "static,1000"
+    "static,4"
+    "static,16"
+    "static,64"
+    "static,256"
+    "static,1024"
     "dynamic,1"
-    "dynamic,10"
-    "dynamic,100"
-    "dynamic,1000"
+    "dynamic,4"
+    "dynamic,16"
+    "dynamic,64"
+    "dynamic,256"
+    "dynamic,1024"
     "guided,1"
-    "guided,10"
-    "guided,100"
-    "guided,1000"
+    "guided,4"
+    "guided,16"
+    "guided,64"
+    "guided,256"
+    "guided,1024"
 )
 
 # Environment variables
