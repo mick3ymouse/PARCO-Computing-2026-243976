@@ -33,6 +33,14 @@ int main() {
 
         switch (config.benchmark_mode) {
             case BenchmarkMode::TIMINGS:
+                // Warm-up run 
+                if (config.execution_mode == ExecutionMode::SEQUENTIAL) {
+                    mtx_csr.multiply_sequential(vec);
+                } else {
+                    mtx_csr.multiply_parallel(vec);
+                }
+                
+                // Timed runs
                 for (int i=0; i < config.timings_runs; ++i) {
                     start = omp_get_wtime();
                     switch (config.execution_mode) {
