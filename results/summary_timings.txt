@@ -1,7 +1,7 @@
 ==============================
   Benchmark Timings Summary
 ==============================
-Date: Mon Nov 17 15:26:04 CET 2025
+Date: Tue Nov 18 16:05:18 CET 2025
 
 --------------------------------
   System Configuration
@@ -29,6 +29,6 @@ Total Memory:     503G
 Matrices tested:
   - pre2.mtx
 
-Thread counts: 2 4 8 16 32 64
+Thread counts: 4 8 16 32
 
 Timings results file: results/benchmark_timings.csv
