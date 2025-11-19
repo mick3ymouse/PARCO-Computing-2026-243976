@@ -1,14 +1,14 @@
 ==============================
   Benchmark Timings Summary
 ==============================
-Date: Tue Nov 18 16:05:18 CET 2025
+Date: Wed Nov 19 10:57:28 CET 2025
 
 --------------------------------
   System Configuration
 --------------------------------
 
-Node:             hpc-c11-node17.maas.icts.unitn.it
-Operating System: 3.10.0-1160.59.1.el7.x86_64
+Node:             hpc-c12-node25.maas.icts.unitn.it
+Operating System: 3.10.0-1160.108.1.el7.x86_64
 
 CPU Model:        Intel(R) Xeon(R) Gold 6252N CPU @ 2.30GHz
 Socket(s):        4
@@ -20,7 +20,7 @@ L1d Cache:        32K
 L1i Cache:        32K
 L2 Cache:         1024K
 L3 Cache:         36608K
-Total Memory:     503G
+Total Memory:     1.1T
 
 --------------------------------
   Benchmark Configuration
