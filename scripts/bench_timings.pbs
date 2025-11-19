@@ -32,7 +32,7 @@ EXEC="./build/spmv_benchmark"
 MATRICES=("$MATRICES_DIR"/*.mtx)
 
 # Thread counts
-THREADS=(4 8 16 32) 
+THREADS=(2 4 8 16 32 64) 
 
 # Schedule configurations (kind,chunk_size)
 SCHEDULES=(
