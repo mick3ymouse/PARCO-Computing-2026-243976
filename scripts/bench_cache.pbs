@@ -5,6 +5,8 @@
 #PBS -q short_cpuQ
 #PBS -o logs/benchmark_cache.log
 #PBS -e logs/benchmark_cache.err
+#PBS -m ae
+#PBS -M michimar2003@outlook.com
 
 # Change to working directory
 cd $PBS_O_WORKDIR
