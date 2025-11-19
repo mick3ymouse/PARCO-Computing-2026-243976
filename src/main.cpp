@@ -53,7 +53,7 @@ int main() {
                     }
                     end = omp_get_wtime();
                     time_ms = (end - start) * 1000.0;
-                    log_to_csv(config, time_ms);
+                    log_to_csv(config, mtx_csr.get_nnz(), time_ms);
                 }
             break;
             case BenchmarkMode::CACHE:

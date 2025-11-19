@@ -31,7 +31,7 @@ void print_dense_matrix(vector<vector<double>> matrix) {
     }
 }
 
-void log_to_csv(const BenchmarkConfig& config, double time_ms) {
+void log_to_csv(const BenchmarkConfig& config, size_t nnz, double time_ms) {
     // Check if file is empty to write header
     ofstream file(config.timings_file, ios_base::app);
     if (!file) {
@@ -48,8 +48,11 @@ void log_to_csv(const BenchmarkConfig& config, double time_ms) {
     // Write header if file is empty
     file.seekp(0, ios_base::end);
     if (file.tellp() == 0) {
-        file << "Mode,Matrix,Threads,Schedule,ChunkSize,Time_ms\n";
+        file << "Mode,Matrix,Threads,Schedule,ChunkSize,Time_ms,GFLOPs\n";
     }
+
+    // Calculate GFLOPs: GFLOPs = (2*nnz)/(time_ms*10^6)
+    double glfops = ( 2.0 * static_cast<double>(nnz) )/(time_ms* 1e6);
 
     // Write benchmark data
     switch (config.execution_mode) {
@@ -64,7 +67,8 @@ void log_to_csv(const BenchmarkConfig& config, double time_ms) {
          << config.num_threads << ","
          << config.s_kind << ","
          << config.s_chunk_size << ","
-         << time_ms << "\n";
+         << time_ms << ","
+         << glfops << "\n";
 
     file.close();
 }
