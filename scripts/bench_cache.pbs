@@ -1,11 +1,11 @@
 #!/bin/bash
 #PBS -N spmv_cache
 #PBS -l select=1:ncpus=64:mem=8gb
-#PBS -l walltime=12:00:00
-#PBS -q common_cpuQ
+#PBS -l walltime=03:00:00
+#PBS -q short_cpuQ
 #PBS -o logs/benchmark_cache.log
 #PBS -e logs/benchmark_cache.err
-#PBS -m ae
+#PBS -m abe
 #PBS -M michimar2003@outlook.com
 
 # Change to working directory
@@ -18,7 +18,6 @@ echo ">>> Loading required modules..."
 if ! module list 2>&1 | grep -q "perf"; then
     echo "    Loading perf..."
     module load perf
-    
     if [ $? -ne 0 ]; then
         echo "    ERROR: Failed to load perf."
         exit 1
@@ -43,6 +42,13 @@ if [ ! -d "$MATRICES_DIR" ]; then
     exit 1
 fi
 
+# Best configurations file validation
+BEST_CONFIG_FILE="results/best_configs.csv"
+if [ ! -f "$BEST_CONFIG_FILE" ]; then
+    echo "ERROR: Best configurations file '$BEST_CONFIG_FILE' not found!"
+    exit 1
+fi
+
 # Executable
 EXEC="./build/spmv_benchmark"
 
@@ -52,27 +58,8 @@ MATRICES=("$MATRICES_DIR"/*.mtx)
 # Thread counts
 THREADS=(2 4 8 16 32 64) 
 
-# Schedule configurations (kind,chunk_size)
-SCHEDULES=(
-    "static,1"
-    "static,4"
-    "static,16"
-    "static,64"
-    "static,256"
-    "static,1024"
-    "dynamic,1"
-    "dynamic,4"
-    "dynamic,16"
-    "dynamic,64"
-    "dynamic,256"
-    "dynamic,1024"
-    "guided,1"
-    "guided,4"
-    "guided,16"
-    "guided,64"
-    "guided,256"
-    "guided,1024"
-)
+# Schedule kinds
+SCHEDULE_KINDS=(static dynamic guided)
 
 # Environment variables
 export OMP_DYNAMIC=FALSE
@@ -84,6 +71,20 @@ echo "  Sparse Matrix-Vector Multiplication - Cache Benchmark"
 echo "=========================================================="
 echo "Start time: $(date)"
 echo "Node: $(hostname)"
+echo ""
+
+# ======================================
+# LOAD BEST CONFIGURATIONS
+# ======================================
+declare -A MATRIX_SCHEDULE_CHUNKS
+
+while IFS=',' read -r matrix schedule chunk speedup; do
+    if [ "$matrix" != "Matrix" ]; then
+        MATRIX_SCHEDULE_CHUNKS["${matrix}:${schedule}"]="$chunk"
+    fi
+done < "$BEST_CONFIG_FILE"
+
+echo "Loaded configurations for ${#MATRIX_SCHEDULE_CHUNKS[@]} matrix-schedule combinations"
 echo ""
 
 # ======================================
@@ -156,12 +157,12 @@ calc_cache_stats() {
     local avg_llc_miss=$(echo "scale=2; $total_llc_miss / $CACHE_RUNS" | bc -l)
     
     # Display results
-    echo "         Average IPC: $avg_ipc"
-    echo "         Average L1 Loads: $avg_l1_load"
-    echo "         Average L1 Misses: $avg_l1_miss"
-    echo "         Average LLC Loads: $avg_llc_load"
-    echo "         Average LLC Misses: $avg_llc_miss"
-    
+    #echo "         Average IPC: $avg_ipc"
+    #echo "         Average L1 Loads: $avg_l1_load"
+    #echo "         Average L1 Misses: $avg_l1_miss"
+    #echo "         Average LLC Loads: $avg_llc_load"
+    #echo "         Average LLC Misses: $avg_llc_miss"
+
     # Write to CSV
     echo "$MODE,$(basename $MATRIX_FILE),$num_threads,$sched_kind,$chunk_size,$avg_ipc,$avg_l1_load,$avg_l1_miss,$avg_llc_load,$avg_llc_miss" >> $CACHE_FILE
     echo "         Benchmark complete!"
@@ -213,7 +214,9 @@ do
         continue
     fi
     
-    echo ">>> Matrix: $(basename $matrix)"
+    matrix_name=$(basename "$matrix")
+
+    echo ">>> Matrix: $matrix_name"
     echo ""
     export MATRIX_FILE="$matrix"
 
@@ -225,9 +228,16 @@ do
         echo "  >> Threads: $threads"
         echo ""
         
-        for schedule in "${SCHEDULES[@]}";
+        for sched_kind in "${SCHEDULE_KINDS[@]}";
         do
-            IFS=',' read -r sched_kind chunk_size <<< "$schedule"
+            key="${matrix_name}:${sched_kind}"
+            chunk_size="${MATRIX_SCHEDULE_CHUNKS[$key]}"
+
+            if [ -z "$chunk_size" ]; then
+                echo "     > Schedule: $sched_kind - WARNING: No optimal chunk size found, skipping"
+                continue
+            fi
+
             export OMP_SCHEDULE="${sched_kind},${chunk_size}"
             echo "     > Schedule: $sched_kind, Chunk: $chunk_size"
             calc_cache_stats
