@@ -29,4 +29,8 @@ spmv_benchmark
 # Ignore VS Code files
 .vscode/
 
+# Ignore Python virtual environment folders
+venv/
+__pycache__/
+
 Translated with DeepL.com (free version)
