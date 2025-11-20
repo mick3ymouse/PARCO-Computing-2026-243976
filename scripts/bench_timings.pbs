@@ -1,8 +1,8 @@
 #!/bin/bash
 #PBS -N spmv_timings
 #PBS -l select=1:ncpus=64:mem=8gb
-#PBS -l walltime=02:00:00
-#PBS -q common_cpuQ
+#PBS -l walltime=03:00:00
+#PBS -q short_cpuQ
 #PBS -o logs/benchmark_timings.log
 #PBS -e logs/benchmark_timings.err
 #PBS -m ae
