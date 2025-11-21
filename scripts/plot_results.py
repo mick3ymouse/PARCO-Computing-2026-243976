@@ -32,7 +32,7 @@ def setup_dirs(matrices):
         matrix_base.mkdir(exist_ok=True)
 
         dirs[matrix] = {}
-        subfolders = ["0_tuning", "1_efficiency", "2_speedup", "3_ipc", "4_cache_misses"]
+        subfolders = ["0_tuning", "1_efficiency", "2_speedup", "3_throughput", "4_ipc", "5_cache_misses"]
         for name in subfolders:
             subdir = matrix_base / name
             subdir.mkdir(exist_ok=True)
@@ -159,11 +159,32 @@ def plot_final_speedup_comparison(best_curves_df, output_dirs):
         print(f"✓ Final speedup comparison plotted for {matrix}")
 
 
+def plot_final_throughput_comparison(best_curves_df, output_dirs):
+    matrices = best_curves_df["Matrix"].unique()
+    for matrix in matrices:
+        df_m = best_curves_df[best_curves_df["Matrix"] == matrix]
+        output_dir = output_dirs[matrix]["3_throughput"]
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        for sched in ORDER_SCHEDULES:
+            df_s = df_m[df_m["Schedule"] == sched].sort_values("Threads")
+            best_chunk = int(df_s["ChunkSize"].iloc[0])
+            plot_line(
+                df_s["Threads"], df_s["p90_GFLOPs"], f"{sched.upper()} (Chunk={best_chunk})", SCHEDULE_COLORS[sched], ax=ax)
+
+        safe = matrix.replace(".", "_")
+        finalize_plot(
+            ax, "Number of Threads", "GFLOPs (p90)",
+            f"{matrix} - Throughput (Best Chunks)",
+            output_dir / f"{safe}_FINAL_throughput.png"
+        )
+        print(f"✓ Throughput comparison plotted for {matrix}")
+
 def plot_ipc_vs_threads(cache_df, output_dirs):
     matrices = cache_df['Matrix'].unique()
     for matrix in matrices:
         df_m = cache_df[cache_df['Matrix'] == matrix]
-        output_dir = output_dirs[matrix]["3_ipc"]
+        output_dir = output_dirs[matrix]["4_ipc"]
         fig, ax = plt.subplots(figsize=(10, 6))
 
         for sched in ORDER_SCHEDULES:
@@ -182,7 +203,7 @@ def plot_cache_miss_rates(cache_miss_df, output_dirs):
     matrices = cache_miss_df["Matrix"].unique()
     for matrix in matrices:
         df_m = cache_miss_df[cache_miss_df["Matrix"] == matrix]
-        cache_dir = output_dirs[matrix]["4_cache_misses"]
+        cache_dir = output_dirs[matrix]["5_cache_misses"]
         df_par = df_m[df_m["Mode"] == "parallel"]
 
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -228,6 +249,7 @@ def run_analysis():
 
     best_curves_df = speedup_df.merge(best_configs, on=['Matrix','Schedule','ChunkSize'])
     plot_final_speedup_comparison(best_curves_df, dirs)
+    plot_final_throughput_comparison(best_curves_df, dirs)
 
     cache_df = pd.read_csv("results/benchmark_cache.csv")
     cache_df['Schedule'] = cache_df['Schedule'].fillna('none')
