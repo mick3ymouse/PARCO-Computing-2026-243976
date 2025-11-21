@@ -1,34 +1,39 @@
 ==============================
   Benchmark Timings Summary
 ==============================
-Date: Wed Nov 19 10:57:28 CET 2025
+Date: Thu Nov 20 21:43:30 CET 2025
 
 --------------------------------
   System Configuration
 --------------------------------
 
-Node:             hpc-c12-node25.maas.icts.unitn.it
-Operating System: 3.10.0-1160.108.1.el7.x86_64
+Node:             hpc-c07-node02.unitn.it
+Operating System: 3.10.0-1127.18.2.el7.x86_64
 
-CPU Model:        Intel(R) Xeon(R) Gold 6252N CPU @ 2.30GHz
+CPU Model:        Intel(R) Xeon(R) Gold 6140M CPU @ 2.30GHz
 Socket(s):        4
 NUMA node(s):     4
-Core(s)/Socket:   24
-Total Cores:      96
+Core(s)/Socket:   18
+Total Cores:      72
 Thread(s)/Core:   1
 L1d Cache:        32K
 L1i Cache:        32K
 L2 Cache:         1024K
-L3 Cache:         36608K
-Total Memory:     1.1T
+L3 Cache:         25344K
+Total Memory:     251G
 
 --------------------------------
   Benchmark Configuration
 --------------------------------
 
 Matrices tested:
-  - pre2.mtx
+  - atmosmodd.mtx
+  - circuit5M.mtx
+  - memchip.mtx
+  - poisson3Db.mtx
+  - rajat29.mtx
+  - torso1.mtx
 
-Thread counts: 4 8 16 32
+Thread counts: 2 4 8 16 32 64
 
 Timings results file: results/benchmark_timings.csv

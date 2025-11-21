@@ -1,13 +1,13 @@
 ============================
   Benchmark Cache Summary
 ============================
-Date: Wed Nov 19 11:18:11 CET 2025
+Date: Thu Nov 20 21:28:44 CET 2025
 
 --------------------------------
   System Configuration
 --------------------------------
 
-Node:             hpc-c07-node04.unitn.it
+Node:             hpc-c07-node07.unitn.it
 Operating System: 3.10.0-1127.18.2.el7.x86_64
 
 CPU Model:        Intel(R) Xeon(R) Gold 6140M CPU @ 2.30GHz
@@ -20,15 +20,20 @@ L1d Cache:        32K
 L1i Cache:        32K
 L2 Cache:         1024K
 L3 Cache:         25344K
-Total Memory:     220G
+Total Memory:     251G
 
 --------------------------------
   Benchmark Configuration
 --------------------------------
 
 Matrices tested:
-  - pre2.mtx
+  - atmosmodd.mtx
+  - circuit5M.mtx
+  - memchip.mtx
+  - poisson3Db.mtx
+  - rajat29.mtx
+  - torso1.mtx
 
-Thread counts: 4 8 16 32
+Thread counts: 2 4 8 16 32 64
 
 Cache results file: results/benchmark_cache.csv
