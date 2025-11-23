@@ -39,10 +39,13 @@ It is strictly recommended to use a virtual environment located INSIDE the proje
 
 # NOTE: You must activate this environment ("source .venv/bin/activate") every time you open a new terminal session
 
-## Execution Toolchain (NOTE: run this commands from the project’s root directory)
+## Execution Toolchain 
+
+# (NOTE: run this commands from the project’s root directory)
 The analysis pipeline consists of 4 sequential steps: 
 
 **STEP 1: TIMING BENCHMARKS**
+
 Description: Compiles the source code and submits a PBS job to the cluster queue to run raw performance benchmarks. It varies the number of threads and scheduling policies (static, dynamic, guided).
 
 cmd: `bash setup_and_run.sh timings`
@@ -53,6 +56,7 @@ Output:
 - Generates preliminary CSV timing data once the job completes in "results/".
 
 **STEP 2: TUNING (OPTIONAL for default dataset)**
+
 Description: Analyzes the timing data from Step 3.1 to identify the optimal chunk_size for each matrix.
 NOTE: Since "best_configs.csv" is already provided, run this only if you want to re-calibrate the optimal parameters for your specific hardware
 
@@ -62,6 +66,7 @@ Output:
 -Updates the "best_configs.csv" file in "results/".
 
 **STEP 3: HARWARE PROFILING**
+
 Description: Submits a specific PBS job to re-run the kernel using ONLY the optimal configurations found in "best_configs.csv". It uses `perf` tool to capture IPC, L1 Miss Rates, and LLC Miss Rates.
 
 cmd: `bash setup_and_run.sh cache`
@@ -71,6 +76,7 @@ Output:
 -Generates CSV file containing cache metrics in "results/".
 
 **STEP 4: PLOT GENERATION**
+
 Description: Processes all collected data and generates the final performance figures (Speedup, Efficiency, Cache Analysis).
 
 cmd: `python3 plot_results.py`
