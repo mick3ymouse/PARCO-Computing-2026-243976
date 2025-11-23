@@ -24,7 +24,7 @@ Due to storage constraints, input matrices are not included in the repository.
 It is strictly recommended to use a virtual environment located INSIDE the project root directory to manage dependencies and execution paths correctly.
 
 # Ensure you are in the project root folder:
-cd /path/to/project_root/
+cmd: `cd /path/to/project_root/`
 
 # Create and activate the virtual environment
 `python3 -m venv .venv`
