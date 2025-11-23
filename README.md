@@ -30,6 +30,7 @@ It is strictly recommended to use a virtual environment located INSIDE the proje
 2.  Create and activate the virtual environment:
     
     cmd: `python3 -m venv .venv`
+    
     cmd: `source .venv/bin/activate`
 
 3.  Install required dependencies:
