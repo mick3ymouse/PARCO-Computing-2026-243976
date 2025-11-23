@@ -60,6 +60,7 @@ def finalize_plot(ax, xlabel, ylabel, title, output_file):
     ax.set_title(title, fontsize=FONTSIZE_TITLE)
     ax.grid(True, alpha=GRID_ALPHA)
     ax.legend()
+    ax.set_xticks([2,4,8,16,32,64])
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close()
@@ -219,6 +220,7 @@ def plot_cache_miss_rates(cache_miss_df, output_dirs):
             ax.set_title(f"{matrix} – {miss_type.replace('_',' ')}")
             ax.grid(True, alpha=GRID_ALPHA)
             ax.legend()
+            ax.set_xticks([2,4,8,16,32,64])
 
         plt.tight_layout()
         safe = matrix.replace(".", "_")
