@@ -5,8 +5,11 @@
 #PBS -q short_cpuQ
 #PBS -o logs/benchmark_timings.log
 #PBS -e logs/benchmark_timings.err
-#PBS -m abe
-#PBS -M michimar2003@outlook.com
+
+# --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
+# #PBS -m abe
+# #PBS -M your_email@domain.com
+# -------------------------------------------------
 
 # Change to working directory
 cd $PBS_O_WORKDIR
