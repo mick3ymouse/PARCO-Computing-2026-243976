@@ -42,8 +42,7 @@ It is strictly recommended to use a virtual environment located INSIDE the proje
 ## Execution Toolchain 
 
 **NOTE: run this commands from the project’s root directory**
-T
-he analysis pipeline consists of 4 sequential steps: 
+The analysis pipeline consists of 4 sequential steps: 
 
 **STEP 1: TIMING BENCHMARKS**
 
