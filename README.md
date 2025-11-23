@@ -37,7 +37,7 @@ It is strictly recommended to use a virtual environment located INSIDE the proje
 
     cmd: `pip install -r requirements.txt`
 
-# NOTE: You must activate this environment ("source venv/bin/activate") every time you open a new terminal session
+# NOTE: You must activate this environment ("source .venv/bin/activate") every time you open a new terminal session
 
 ## Execution Toolchain (NOTE: run this commands from the project’s root directory)
 The analysis pipeline consists of 4 sequential steps: 
