@@ -27,11 +27,11 @@ It is strictly recommended to use a virtual environment located INSIDE the proje
 cmd: `cd /path/to/project_root/`
 
 # Create and activate the virtual environment
-`python3 -m venv .venv`
-`source .venv/bin/activate`
+cmd: `python3 -m venv .venv`
+cmd: `source .venv/bin/activate`
 
 # Install required dependencies
-`pip install -r requirements.txt`
+cmd: `pip install -r requirements.txt`
 
 # NOTE: You must activate this environment ("source venv/bin/activate") every time you open a new terminal session
 
