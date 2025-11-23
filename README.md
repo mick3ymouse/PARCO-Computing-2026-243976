@@ -23,14 +23,14 @@ Due to storage constraints, input matrices are not included in the repository.
 ### 2. Python Environment Setup
 It is strictly recommended to use a virtual environment located INSIDE the project root directory to manage dependencies and execution paths correctly.
 
-# Ensure you are in the project root folder:
+1.  Ensure you are in the project root folder:
 cmd: `cd /path/to/project_root/`
 
-# Create and activate the virtual environment
+2.  Create and activate the virtual environment
 cmd: `python3 -m venv .venv`
 cmd: `source .venv/bin/activate`
 
-# Install required dependencies
+3.  Install required dependencies
 cmd: `pip install -r requirements.txt`
 
 # NOTE: You must activate this environment ("source venv/bin/activate") every time you open a new terminal session
