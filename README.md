@@ -5,7 +5,7 @@ This repository contains an optimized implementation of the **Sparse Matrix-Vect
 ## Prerequisites
 The project is designed to be executed in a **Linux environment** (e.g., HPC Cluster).
 
-* **Compiler:** GCC with OpenMP support (`g++` >= 9.1.0 recommended).
+* **Compiler:** GCC with OpenMP support (`g++ 9.1.0`).
 * **Python:** Version 3.6+ for analysis and plotting scripts.
 * **Python Libraries:** `pandas`, `matplotlib`.
 The scripts are configured to use the "Agg" backend for matplotlib, allowing execution on headless clusters (no GUI required).
@@ -58,10 +58,10 @@ Output:
 
 **STEP 2: TUNING (OPTIONAL for default dataset)**
 
-Description: Analyzes the timing data from Step 3.1 to identify the optimal chunk_size for each matrix.
-NOTE: Since "best_configs.csv" is already provided, run this only if you want to re-calibrate the optimal parameters for your specific hardware
+Description: Analyzes the timing data from Step 1 to identify the optimal chunk_size for each matrix.
+NOTE: Since "best_configs.csv" is already provided, run this only if you want to recalculate the optimal parameters.
 
-cmd: `python3 tuning.py`
+cmd: `python3 scripts/tuning.py`
 
 Output: 
 -Updates the "best_configs.csv" file in "results/".
@@ -80,7 +80,7 @@ Output:
 
 Description: Processes all collected data and generates the final performance figures (Speedup, Efficiency, Cache Analysis).
 
-cmd: `python3 plot_results.py`
+cmd: `python3 scripts/plot_results.py`
 
 Output: PNG images saved in the "plots/" directory.
 
