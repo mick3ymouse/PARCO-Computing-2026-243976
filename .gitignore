@@ -8,7 +8,7 @@
 !/logs/.gitkeep
 
 # Ignore matrix files
-/matrices/*.mtx
+*.mtx
 
 # Ignore results files (if you decide not to upload them)
 # Comment out this line if you WANT to upload .csv files
@@ -33,4 +33,5 @@ spmv_benchmark
 venv/
 __pycache__/
 
-Translated with DeepL.com (free version)
+Translated with DeepL.com (free version)*.mtx
+*.mtx
