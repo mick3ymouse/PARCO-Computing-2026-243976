@@ -1,0 +1,20 @@
+#!/bin/bash
+#PBS -N Job_Convert_Bin
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=00:10:00
+#PBS -q short_cpuQ
+
+cd $PBS_O_WORKDIR
+
+# Carica ambiente Python
+module load python-3.8.1
+source .venv/bin/activate
+
+SCRIPT_PY="scripts/convert_to_bin.py"
+MATRICES_DIR="matrices"
+
+echo "[PBS] Avvio conversione matrici..."
+for matrix_file in $MATRICES_DIR/*.mtx; do
+    python3 $SCRIPT_PY "$matrix_file"
+done
+echo "[PBS] Conversione terminata."
