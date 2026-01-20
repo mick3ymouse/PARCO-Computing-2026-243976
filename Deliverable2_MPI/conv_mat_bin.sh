@@ -10,16 +10,16 @@ echo "=========================================="
 
 echo ">>> Loading required module..."
 
-if ! module list 2>&1 | grep -q "python-3.8.13"; then
-        echo "    Loading python-3.8.13..."
-        module load "python-3.8.13"
+if ! module list 2>&1 | grep -q "Python/3.11.3-GCCcore-12.3.0"; then
+        echo "    Loading Python/3.11.3-GCCcore-12.3.0..."
+        module load "Python/3.11.3-GCCcore-12.3.0"
         
         if [ $? -ne 0 ]; then
-            echo "    ERROR: Failed to load python-3.8.1."
+            echo "    ERROR: Failed to load Python/3.11.3-GCCcore-12.3.0."
             exit 1
         fi
 else
-    echo "    python-3.8.13 is already loaded."
+    echo "    Python/3.11.3-GCCcore-12.3.0 is already loaded."
 fi
 
 echo ">>> Module loaded successfully."
