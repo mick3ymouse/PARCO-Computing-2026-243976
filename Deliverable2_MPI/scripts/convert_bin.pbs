@@ -2,7 +2,7 @@
 #PBS -N conv_bin
 #PBS -l select=1:ncpus=1:mem=4gb
 #PBS -l walltime=01:00:00
-#PBS -q short_cpuQ
+#PBS -q shortCPUQ
 #PBS -o logs/conversion/convert_bin.log
 #PBS -e logs/conversion/convert_bin.err
 

@@ -39,6 +39,7 @@ fi
 # Activate virtual environment
 echo ">>> Activating .venv and installing dependencies..."
 source .venv/bin/activate
+pip install --upgrade pip
 
 REQ_FILE="requirements/req_convert_bin.txt"
 if [ -f "$REQ_FILE" ]; then
