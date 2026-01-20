@@ -1,0 +1,73 @@
+#!/bin/bash
+#PBS -N conv_bin
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=01:00:00
+#PBS -q short_cpuQ
+#PBS -o logs/conversion/convert_bin.log
+#PBS -e logs/conversion/convert_bin.err
+
+# --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
+# #PBS -m abe
+# #PBS -M your_email@domain.com
+# -------------------------------------------------
+
+
+echo "=========================================="
+echo "  SparseMatrix: CONVERSION SCRIPT"
+echo "=========================================="
+
+# ======================================
+# LOAD MODULES
+# ======================================
+
+echo ">>> Loading required module..."
+
+if ! module list 2>&1 | grep -q "python-3.8.13"; then
+        echo "    Loading python-3.8.13..."
+        module load "python-3.8.13"
+        
+        if [ $? -ne 0 ]; then
+            echo "    ERROR: Failed to load python-3.8.1."
+            exit 1
+        fi
+else
+    echo "    python-3.8.13 is already loaded."
+fi
+
+echo ">>> Module loaded successfully."
+
+# ======================================
+# MAIN SCRIPT
+# ======================================
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+# Activate virtual environment
+echo ">>> Ensuring .venv is set up..."
+
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+else
+    echo "   .venv not found! Run conv_mat_bin.sh first from the login node."
+    exit 1
+fi
+
+# Setup path for conversion script and matrices directory
+SCRIPT_PY="scripts/convert_to_bin.py"
+MATRICES_DIR="matrices"
+
+# Check for .mtx files and convert them
+shopt -s nullglob
+files=($MATRICES_DIR/*.mtx)
+if [ ${#files[@]} -eq 0 ]; then
+    echo "No .mtx files found in $MATRICES_DIR"
+    exit 0
+fi
+
+echo ">>> Starting conversion of matrices to binary format..."
+for matrix_file in "${files[@]}"; do
+    echo "   Converting $matrix_file to binary format..."
+    python3 $SCRIPT_PY "$matrix_file"
+done
+echo ">>> Conversion completed."
