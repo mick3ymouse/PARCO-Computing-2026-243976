@@ -50,8 +50,6 @@ else
     echo ">>> Virtual environment .venv found, skipping creation."
 fi
 
-
-
 # Create logs directory if it doesn't exist
 mkdir -p logs/conversion
 
