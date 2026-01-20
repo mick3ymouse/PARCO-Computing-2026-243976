@@ -1,0 +1,101 @@
+#!/bin/bash
+#PBS -N spmv
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb:net_type=IB
+#PBS -l walltime=00:10:00
+#PBS -q short_cpuQ
+#PBS -o logs/strong_scaling.log
+#PBS -e logs/strong_scaling.err
+
+# --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
+# #PBS -m abe
+# #PBS -M your_email@domain.com
+# -------------------------------------------------
+
+echo "=========================================="
+echo "  SparseMatrix STRONG SCALING SCRIPT"
+echo "=========================================="
+
+# ======================================
+# LOAD MODULES
+# ======================================
+
+echo ">>> Loading required modules..."
+
+MODULES_TO_LOAD=("openmpi-4.0.4")
+
+# Check and load each module
+for module_name in "${MODULES_TO_LOAD[@]}"; do
+    if ! module list 2>&1 | grep -q "$module_name"; then
+        echo "    Loading $module_name..."
+        module load "$module_name"
+        
+        if [ $? -ne 0 ]; then
+            echo "    ERROR: Failed to load $module_name."
+            exit 1
+        fi
+    else
+        echo "    $module_name is already loaded."
+    fi
+done
+
+echo ">>> Modules loaded successfully."
+
+# ======================================
+# MAIN SCRIPT
+# ======================================
+
+# Move to the directory where the script was submitted
+cd $PBS_O_WORKDIR
+
+# Start Strong Scaling Test
+echo ">>> Starting Strong Scaling Tests..."
+
+BENCH_FILE="results/strong_scaling.csv"
+mkdir -p results
+rm -f $BENCH_FILE
+echo "   Saving results to: $BENCH_FILE"
+echo ""
+
+
+# Define the root folder containing all matrix subdirectories
+MATRICES_ROOT="$PBS_O_WORKDIR/matrices"
+
+# Check if the directory exists
+if [ ! -d "$MATRICES_ROOT" ]; then
+    echo "Error: Directory $MATRICES_ROOT not found!"
+    exit 1
+fi
+
+echo ">>> Looking for matrices in: $MATRICES_ROOT..."
+echo ""
+
+# OUTER LOOP: Iterate over every item inside the matrices folder
+for matrix_path in "$MATRICES_ROOT"/*; do
+    
+    # Check if the current item is actually a directory (ignore files like .txt, .py)
+    if [ -d "$matrix_path" ]; then
+        
+        # Extract the folder name (e.g., "494_bus_bin") for cleaner logging
+        matrix_name=$(basename "$matrix_path")
+        
+        echo "==================================================="
+        echo " PROCESSING MATRIX: $matrix_name"
+        echo " Path: $matrix_path"
+        echo "==================================================="
+
+        # INNER LOOP: Perform Strong Scaling for the current matrix
+        # We run with 1, 2, 4, 8, 16, 32, 64 and 128 MPI processes
+        for P in 1 2 4;
+        do
+            echo " >> Running with $P MPI Processes..."
+            
+            # Run the MPI executable passing the CURRENT matrix path
+            mpirun --mca pml ob1 --mca btl ^openib --mca btl_base_warn_component_unused 0 -np $P build/spmv_strong_exec "$matrix_path" "$BENCH_FILE"
+        done
+        
+        echo " >> Completed processing matrix: $matrix_name."
+        echo ""
+    fi
+done
+
+echo ">>> All Tests Completed."
