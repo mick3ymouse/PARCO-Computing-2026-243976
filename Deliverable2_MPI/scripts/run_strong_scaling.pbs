@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N spmv
-#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb:net_type=IB
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb
 #PBS -l walltime=00:10:00
 #PBS -q shortCPUQ
 #PBS -o logs/strong_scaling/strong_scaling.log
@@ -90,7 +90,7 @@ for matrix_path in "$MATRICES_ROOT"/*; do
             echo " >> Running with $P MPI Processes..."
             
             # Run the MPI executable passing the CURRENT matrix path
-            mpirun --mca pml ob1 --mca btl ^openib --mca btl_base_warn_component_unused 0 -np $P build/spmv_strong_exec "$matrix_path" "$BENCH_FILE"
+            mpirun -np $P build/spmv_strong_exec "$matrix_path" "$BENCH_FILE"
         done
         
         echo " >> Completed processing matrix: $matrix_name."
@@ -99,3 +99,99 @@ for matrix_path in "$MATRICES_ROOT"/*; do
 done
 
 echo ">>> All Tests Completed."
+
+
+# ======================================
+# SUMMARY GENERATION
+# ======================================
+echo ""
+echo "=========================================="
+echo "  Benchmark Strong Scaling Complete!"
+echo "=========================================="
+echo "End time: $(date)"
+echo "Results saved to: $BENCH_FILE"
+echo ""
+echo ">>> Generating system summary..."
+
+LSCPU_OUTPUT=$(lscpu 2>/dev/null)
+FREE_OUTPUT=$(free -h 2>/dev/null)
+OS_VERSION=$(grep -E '^(NAME|VERSION)=' /etc/os-release | cut -d'"' -f2 | paste -sd " " -)
+KERNEL_VERSION=$(uname -r)
+
+# Helper function to parse system info
+parse_cpu() {
+    echo "$LSCPU_OUTPUT" | grep -i "$1" | awk -F ':' '{print $2}' | sed 's/^[ \t]*//' | head -n 1
+}
+
+# Trova interfaccia attiva (escludendo loopback)
+ACTIVE_IF=$(ip -o link show up | grep -v "lo" | awk -F': ' '{print $2}' | head -n 1)
+
+if [ -n "$ACTIVE_IF" ]; then
+    # Leggi velocità e converti in Gbps
+    RAW_SPEED=$(cat /sys/class/net/$ACTIVE_IF/speed 2>/dev/null)
+    if [ -n "$RAW_SPEED" ]; then
+        NET_SPEED="$((RAW_SPEED / 1000)) Gbps"
+    else
+        NET_SPEED="Unknown"
+    fi
+    
+    # Cerca modello Broadcom/Mellanox (Hardware HPC)
+    NET_MODEL=$(/sbin/lspci | grep -E -i "Broadcom|Mellanox" | cut -d: -f3- | sed 's/^[ \t]*//' | head -n 1)
+    
+    # Check RDMA (se il comando esiste)
+    if command -v ibv_devinfo &> /dev/null; then
+       RDMA_STATUS="Available (RoCE/IB Driver Active)"
+    else
+       RDMA_STATUS="Not Detected (TCP/IP only)"
+    fi
+else
+    ACTIVE_IF="None"
+    NET_SPEED="N/A"
+    NET_MODEL="Unknown"
+    RDMA_STATUS="N/A"
+fi
+
+# Crearte summary file
+SUMMARY_FILE="results/strong_scaling_summary.txt"
+{
+    echo "============================================================"
+    echo "  HPC BENCHMARK - SYSTEM & EXECUTION SUMMARY"
+    echo "============================================================"
+    echo "Date:             $(date)"
+    echo "Hostname:         $(hostname)"
+    echo "OS / Kernel:      $OS_VERSION ($KERNEL_VERSION)"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  COMPUTING RESOURCES (CPU/RAM)"
+    echo "------------------------------------------------------------"
+    echo "CPU Model:        $(parse_cpu "Model name")"
+    echo "Architecture:     $(parse_cpu "Architecture")"
+    echo "Total Sockets:    $(parse_cpu "^Socket(s):")"
+    echo "Cores per Socket: $(parse_cpu "^Core(s) per socket:")"
+    echo "Total Phys Cores: $(parse_cpu "^CPU(s):")"
+    echo "L3 Cache:         $(parse_cpu "L3 cache")"
+    echo "Total Memory:     $(echo "$FREE_OUTPUT" | grep 'Mem:' | awk '{print $2}')"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  INTERCONNECT TOPOLOGY (NETWORK)"
+    echo "------------------------------------------------------------"
+    echo "Active Interface: $ACTIVE_IF"
+    echo "Link Speed:       $NET_SPEED"
+    echo "Adapter Model:    $NET_MODEL"
+    echo "Transport Proto:  $RDMA_STATUS"
+    echo "Jumbo Frames:     $(ip link show $ACTIVE_IF | grep -o 'mtu [0-9]*' | awk '{print $2}')"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  SOFTWARE ENVIRONMENT"
+    echo "------------------------------------------------------------"
+    echo "GCC Version:      $(gcc --version | head -n 1)"
+    echo "MPI Version:      $(mpirun --version | head -n 1)"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  OUTPUT FILES"
+    echo "------------------------------------------------------------"
+    echo "Timings Data:     results/timings.csv" # Modifica se il nome del tuo csv è diverso
+    
+} > "$SUMMARY_FILE"
+
+echo "Summary generato con successo in: $SUMMARY_FILE"
