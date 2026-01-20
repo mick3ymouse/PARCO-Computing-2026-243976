@@ -32,31 +32,25 @@ echo ">>> Module loaded successfully."
 if [ ! -d ".venv" ]; then
     echo ">>> Creating virtual environment (.venv)..."
     python3 -m venv .venv
-else
-    echo ">>> Virtual environment .venv found."
-fi
 
-# Activate virtual environment
-echo ">>> Activating .venv and installing dependencies..."
-source .venv/bin/activate
-pip install --upgrade pip
+    # Activate virtual environment and install dependencies
+    echo ">>> Activating .venv and installing dependencies..."
+    source .venv/bin/activate
+    pip install --upgrade pip --quiet
 
-REQ_FILE="requirements/req_convert_bin.txt"
-if [ -f "$REQ_FILE" ]; then
-    pip install -r "$REQ_FILE" --quiet
-    if [ $? -ne 0 ]; then
-        echo "   Dependency installation failed."
-        deactivate
+    if [ -f "requirements/req_convert_bin.txt" ]; then
+        pip install -r "requirements/req_convert_bin.txt"
+    else
+        echo "   File requirements/req_convert_bin.txt not found!"
         exit 1
     fi
-    echo "   Dependencies installed successfully."
-else
-    echo "   File $REQ_FILE not found!"
     deactivate
-    exit 1
+    echo ">>> Virtual environment setup complete."
+else
+    echo ">>> Virtual environment .venv found, skipping creation."
 fi
 
-deactivate
+
 
 # Create logs directory if it doesn't exist
 mkdir -p logs/conversion
