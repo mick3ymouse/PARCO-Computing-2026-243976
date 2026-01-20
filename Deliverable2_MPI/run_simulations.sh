@@ -6,7 +6,7 @@
 
 echo ">>> Loading required modules..."
 
-MODULES_TO_LOAD=("openmpi-4.0.4" "cmake-3.15.4" "make-4.3")
+MODULES_TO_LOAD=("ogompi/2023a" "CMake/3.26.3-GCCcore-12.3.0" "make/4.4.1-GCCcore-12.3.0")
 
 # Check and load each module
 for module_name in "${MODULES_TO_LOAD[@]}"; do
