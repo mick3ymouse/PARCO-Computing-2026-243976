@@ -21,7 +21,7 @@ echo "=========================================="
 
 echo ">>> Loading required modules..."
 
-MODULES_TO_LOAD=("ogompi/2023a")
+MODULES_TO_LOAD=("gompi/2023a")
 
 # Check and load each module
 for module_name in "${MODULES_TO_LOAD[@]}"; do
