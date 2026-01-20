@@ -102,4 +102,4 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"[ERROR] Failed to convert {file_path}: {e}")
 
-print("\n--- All files converted ---")
+print("\n--- All files converted ---\n")

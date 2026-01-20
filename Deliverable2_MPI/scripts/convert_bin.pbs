@@ -53,21 +53,9 @@ else
     exit 1
 fi
 
-# Setup path for conversion script and matrices directory
-SCRIPT_PY="scripts/convert_to_bin.py"
-MATRICES_DIR="matrices"
-
-# Check for .mtx files and convert them
-shopt -s nullglob
-files=($MATRICES_DIR/*.mtx)
-if [ ${#files[@]} -eq 0 ]; then
-    echo "No .mtx files found in $MATRICES_DIR"
-    exit 0
-fi
-
+# Run the conversion script
 echo ">>> Starting conversion of matrices to binary format..."
-for matrix_file in "${files[@]}"; do
-    echo "   Converting $matrix_file to binary format..."
-    python3 $SCRIPT_PY "$matrix_file"
-done
+
+python3 scripts/convert_to_bin.py
+
 echo ">>> Conversion completed."
