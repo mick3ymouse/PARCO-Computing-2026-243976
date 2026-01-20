@@ -50,6 +50,10 @@ echo ""
 
 cd .. # Return to project root
 
+# Create logs directory if it doesn't exist
+mkdir -p logs/strong_scaling
+mkdir -p logs/weak_scaling
+
 # ======================================
 # MAIN SCRIPT
 # ======================================

@@ -3,8 +3,8 @@
 #PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb:net_type=IB
 #PBS -l walltime=00:10:00
 #PBS -q shortCPUQ
-#PBS -o logs/strong_scaling.log
-#PBS -e logs/strong_scaling.err
+#PBS -o logs/strong_scaling/strong_scaling.log
+#PBS -e logs/strong_scaling/strong_scaling.err
 
 # --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
 # #PBS -m abe
@@ -50,12 +50,12 @@ cd $PBS_O_WORKDIR
 # Start Strong Scaling Test
 echo ">>> Starting Strong Scaling Tests..."
 
+# Define the benchmark results file
 BENCH_FILE="results/strong_scaling.csv"
 mkdir -p results
 rm -f $BENCH_FILE
 echo "   Saving results to: $BENCH_FILE"
 echo ""
-
 
 # Define the root folder containing all matrix subdirectories
 MATRICES_ROOT="$PBS_O_WORKDIR/matrices"
