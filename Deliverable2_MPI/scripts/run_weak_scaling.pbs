@@ -1,1 +1,74 @@
 #!/bin/bash
+#PBS -N spmv
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb
+#PBS -l walltime=00:10:00
+#PBS -q shortCPUQ
+#PBS -o logs/weak_scaling/weak_scaling.log
+#PBS -e logs/weak_scaling/weak_scaling.err
+
+# --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
+# #PBS -m abe
+# #PBS -M your_email@domain.com
+# -------------------------------------------------
+
+echo "=========================================="
+echo "  SparseMatrix WEAK SCALING SCRIPT"
+echo "=========================================="
+
+# ======================================
+# LOAD MODULES
+# ======================================
+
+echo ">>> Loading required modules..."
+
+MODULES_TO_LOAD=("gompi/2023a")
+
+# Check and load each module
+for module_name in "${MODULES_TO_LOAD[@]}"; do
+    if ! module list 2>&1 | grep -q "$module_name"; then
+        echo "    Loading $module_name..."
+        module load "$module_name"
+        
+        if [ $? -ne 0 ]; then
+            echo "    ERROR: Failed to load $module_name."
+            exit 1
+        fi
+    else
+        echo "    $module_name is already loaded."
+    fi
+done
+
+echo ">>> Modules loaded successfully."
+
+# ======================================
+# MAIN SCRIPT
+# ======================================
+
+# Move to the directory where the script was submitted
+cd $PBS_O_WORKDIR
+
+# Start Weak Scaling Test
+echo ">>> Starting Weak Scaling Tests..."
+echo ""
+
+# Define the benchmark results file
+BENCH_FILE="results/weak_scaling.csv"
+mkdir -p results
+rm -f $BENCH_FILE
+echo "   Saving results to: $BENCH_FILE"
+echo ""
+
+# Parametri Weak Scaling
+BASE_ROWS=10000   # Ogni core avrà sempre 10k righe
+NNZ_ROW=50        # Densità fissa
+
+# Execute weak scaling tests for different process counts
+for P in 1 2 4 8 16 32 64; do
+    echo ">> Running with $P processes..."
+    
+    # Mpirun calcolerà la dimensione globale = BASE_ROWS * P
+    mpirun -np $P ./build/main_weak $BASE_ROWS $NNZ_ROW
+done
+
+echo ""
+echo ">>> Weak Scaling Tests completed."
