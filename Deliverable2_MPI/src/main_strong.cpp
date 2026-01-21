@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
 
     // --- 5. Computation Phase (SpMV) ---
     // The core multiplication: y = A * x
-    run_spmv_benchmark(my_matrix, x_vector, matrix_name, output_csv_path, total_nnz, rank, size);
+    run_strong_scaling(my_matrix, x_vector, matrix_name, output_csv_path, total_nnz, rank, size);
 
     // --- 6. Finalization ---
     MPI_Finalize();
