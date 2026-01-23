@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -N spmv
-#PBS -l select=4:ncpus=64:mpiprocs=64:mem=32gb
+#PBS -N spmv_weak
+#PBS -l select=2:ncpus=96:mpiprocs=96:mem=32gb
 #PBS -l walltime=02:00:00
-#PBS -q commonCPUQ
+#PBS -q shortCPUQ
 #PBS -o logs/weak_scaling/weak_scaling.log
 #PBS -e logs/weak_scaling/weak_scaling.err
 

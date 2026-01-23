@@ -59,6 +59,6 @@ mkdir -p logs/weak_scaling
 # ======================================
 
 # Submit the strong scaling job
-echo ">>> Submitting strong scaling job..."
+echo ">>> Submitting jobs..."
 qsub scripts/run_strong_scaling.pbs
 qsub scripts/run_weak_scaling.pbs
