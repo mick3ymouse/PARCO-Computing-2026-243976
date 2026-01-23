@@ -121,23 +121,23 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
  * Each process generates a local portion of the matrix with a fixed number of rows
  * and non-zeros per row.
  * @param local_rows Number of rows for this process.
- * @param global_cols Total number of columns in the global matrix.
+ * @param total_cols Total number of columns in the global matrix.
  * @param nnz_per_row Number of non-zero elements per row.
  * @param rank MPI Rank.
  * @return CSRMatrix The generated local CSR matrix partition.
  */
-CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per_row, int rank);
+CSRMatrix generate_synthetic_matrix(int local_rows, int total_cols, int nnz_per_row, int rank);
 
 /**
  * @brief Logs weak scaling benchmark results to a CSV file.
  * @param output_path Path to the CSV output file.
  * @param size Number of MPI processes.
- * @param global_rows Total number of rows in the global matrix.
- * @param global_nnz Total number of non-zero elements in the global matrix.
+ * @param total_rows Total number of rows in the global matrix.
+ * @param total_nnz Total number of non-zero elements in the global matrix.
  * @param time_p90_ms The 90th percentile of execution time.
  * @param gflops The calculated GFLOPS based on P90 time.
  */
-void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, 
+void log_weak_scaling_csv(const string& output_path, int size, int total_rows, int total_nnz, 
                           double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms, 
                           double gflops);
 
@@ -152,12 +152,12 @@ void log_weak_scaling_csv(const string& output_path, int size, int global_rows, 
  * @param x_local The input vector (Already generated and distributed).
  * @param output_path Path to the CSV output file.
  * @param rows_per_proc Number of rows assigned to each process.
- * @param global_nnz Total non-zeros in the global matrix (for GFLOPS calculation).
+ * @param total_nnz Total non-zeros in the global matrix (for GFLOPS calculation).
  * @param rank MPI Rank.
  * @param size MPI Size.
  */
 void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local, 
                       const string& output_path, int rows_per_proc, 
-                      long long global_nnz, int rank, int size);
+                      long long total_nnz, int rank, int size);
 
 #endif // UTILS_H

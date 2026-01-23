@@ -311,7 +311,7 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
     }
 }
 
-CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per_row, int rank) {
+CSRMatrix generate_synthetic_matrix(int local_rows, int total_cols, int nnz_per_row, int rank) {
     CSRMatrix mat;
 
     // 1. Setup Dimensioni Locali
@@ -336,8 +336,8 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
         // Usiamo un set per generare indici di colonna unici e ordinati
         set<int> cols;
         while (cols.size() < (size_t)nnz_per_row) {
-            // Generiamo una colonna casuale nell'intervallo GLOBALE [0, global_cols)
-            int rand_col = rand() % global_cols;
+            // Generiamo una colonna casuale nell'intervallo GLOBALE [0, total_cols)
+            int rand_col = rand() % total_cols;
             cols.insert(rand_col);
         }
 
@@ -357,7 +357,7 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
     return mat;
 }
 
-void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, 
+void log_weak_scaling_csv(const string& output_path, int size, int total_rows, int total_nnz, 
                           double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms, 
                           double gflops) {
     // 1. Open file in Append Mode
@@ -373,11 +373,11 @@ void log_weak_scaling_csv(const string& output_path, int size, int global_rows, 
     // 3. Write Header if file is empty
     file.seekp(0, ios_base::end);
     if (file.tellp() == 0) {
-        file << "MPI_Procs,Global_Rows,Global_NNZ,Time_P90_ms,Time_Comm_ms,Time_Comp_ms,GFLOPS" << endl;
+        file << "MPI_Procs,Total_Rows,Total_NNZ,Time_P90_ms,Time_Comm_ms,Time_Comp_ms,GFLOPS" << endl;
     }
 
     // 4. Write Data Row
-    file << size << "," << global_rows << "," << global_nnz << "," 
+    file << size << "," << total_rows << "," << total_nnz << "," 
          << time_p90_ms << "," << time_comm_p90_ms << "," << time_comp_p90_ms << "," 
          << gflops << endl;
     file.close();
@@ -385,7 +385,7 @@ void log_weak_scaling_csv(const string& output_path, int size, int global_rows, 
 
 void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local, 
                       const string& output_path, int rows_per_proc, 
-                      long long global_nnz, int rank, int size) {
+                      long long total_nnz, int rank, int size) {
     
     // 1. Setup Piano Comunicazione (mat è già locale/rinumerata)
     GhostCommunicationPlan plan = setup_ghost_exchange(mat, rank, size);
@@ -508,8 +508,10 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local,
         // GFLOPS = (2 * NNZ Totali) / (Tempo in secondi * 10^9)
         double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9);
         
+        int total_rows = rows_per_proc * size;
+
         // Log dei risultati
-        log_weak_scaling_csv(output_path, size, global_rows, global_nnz, 
+        log_weak_scaling_csv(output_path, size, total_rows, total_nnz, 
                              time_p90 * 1000.0,    // Convert to ms
                              comm_p90 * 1000.0,    // Convert to ms
                              comp_p90 * 1000.0,    // Convert to ms

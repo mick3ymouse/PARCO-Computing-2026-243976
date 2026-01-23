@@ -28,30 +28,30 @@ int main(int argc, char** argv) {
 
     // 2. Calcolo Dimensioni Globali
     // Nel weak scaling: Dimensione Totale = Dimensione Locale * N_Processi
-    int global_rows = rows_per_proc * size;
-    int global_cols = global_rows; // Matrice Quadrata
-    long long global_nnz = (long long)global_rows * nnz_per_row;
+    int total_rows = rows_per_proc * size;
+    int total_cols = total_rows; // Matrice Quadrata
+    long long total_nnz = (long long)total_rows * nnz_per_row;
 
     if (rank == 0) {
         cout << "=== STARTING WEAK SCALING TEST ===" << endl;
         cout << "Processes:      " << size << endl;
         cout << "Rows per Proc:  " << rows_per_proc << endl;
-        cout << "Global Size:    " << global_rows << " x " << global_cols << endl;
-        cout << "Total NNZ: " << global_nnz << endl << endl;
+        cout << "Global Size:    " << total_rows << " x " << total_cols << endl;
+        cout << "Total NNZ: " << total_nnz << endl << endl;
     }
 
     // 3. Generazione Matrice Sintetica (Locale)
-    CSRMatrix mat = generate_synthetic_matrix(rows_per_proc, global_cols, nnz_per_row, rank);
+    CSRMatrix mat = generate_synthetic_matrix(rows_per_proc, total_cols, nnz_per_row, rank);
 
     // 4. Generazione Vettore x (Distribuito)
     vector<double> x_local;
-    generate_distributed_vector(global_cols, rank, size, x_local);
+    generate_distributed_vector(total_cols, rank, size, x_local);
 
     // 5. Esecuzione Benchmark
     // Passiamo tutti i dati alla funzione dedicata in Utils
     string output_file = "results/weak_scaling.csv";
     
-    run_weak_scaling(mat, x_local, output_file, rows_per_proc, global_nnz, rank, size);
+    run_weak_scaling(mat, x_local, output_file, rows_per_proc, total_nnz, rank, size);
 
     MPI_Finalize();
     return 0;
