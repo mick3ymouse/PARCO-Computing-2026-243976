@@ -2,7 +2,7 @@
 #PBS -N spmv
 #PBS -l select=4:ncpus=64:mpiprocs=64:mem=32gb
 #PBS -l walltime=02:00:00
-#PBS -q shortCPUQ
+#PBS -q commonCPUQ
 #PBS -o logs/strong_scaling/strong_scaling.log
 #PBS -e logs/strong_scaling/strong_scaling.err
 
