@@ -85,12 +85,15 @@ for matrix_path in "$MATRICES_ROOT"/*; do
 
         # INNER LOOP: Perform Strong Scaling for the current matrix
         # We run with 1, 2, 4, 8, 16, 32, 64 and 128 MPI processes
-        for P in 1 2 4 8 16 32 64 128 256;
+        for P in 1 2 4 8 16 32 64 128;
         do
             echo " >> Running with $P MPI Processes..."
             
             # Run the MPI executable passing the CURRENT matrix path
-            mpirun -np $P build/spmv_strong_exec "$matrix_path" "$BENCH_FILE"
+            mpirun  --hostfile $PBS_NODEFILE \
+                    --oversubscribe \
+                    -map-by ppr:64:node --bind-to core \
+                    -np $P build/spmv_strong_exec "$matrix_path" "$BENCH_FILE"
         done
         
         echo " >> Completed processing matrix: $matrix_name."

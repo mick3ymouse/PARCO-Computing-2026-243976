@@ -59,15 +59,19 @@ echo "   Saving results to: $BENCH_FILE"
 echo ""
 
 # Parametri Weak Scaling
-BASE_ROWS=10000   # Ogni core avrà sempre 10k righe
+BASE_ROWS=100000   # Ogni core avrà sempre 10k righe
 NNZ_ROW=50        # Densità fissa
 
 # Execute weak scaling tests for different process counts
-for P in 1 2 4 8 16 32 64 128 256; do
+for P in 1 2 4 8 16 32 64 128; do
     echo ">> Running with $P processes..."
     
     # Mpirun calcolerà la dimensione globale = BASE_ROWS * P
-    mpirun -np $P build/spmv_weak_exec $BASE_ROWS $NNZ_ROW
+    mpirun  --hostfile $PBS_NODEFILE \
+            --oversubscribe \
+            -map-by ppr:64:node --bind-to core \
+            -np $P \
+            build/spmv_weak_exec $BASE_ROWS $NNZ_ROW
 done
 
 echo ""
