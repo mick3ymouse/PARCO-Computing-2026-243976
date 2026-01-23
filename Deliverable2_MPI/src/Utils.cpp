@@ -4,63 +4,156 @@
 #include <ctime>   // For time()
 #include <iostream>
 #include <fstream>
-#include <algorithm>
+#include <vector>
+#include <map>
 #include <set>
 #include <cmath>
-#include <vector>
+#include <algorithm>
 
 using namespace std;
 
-void generate_distributed_vector(int global_dimension, int rank, int size, vector<double>& full_vec) {
+int PartitionLookup::find_owner(int global_idx) const {
+    // Dato che i range sono ordinati per rank, possiamo scorrere o fare ricerca binaria.
+    // Per size < 1000, un ciclo for è velocissimo.
+    for(size_t r = 0; r < start_rows.size(); r++) {
+        if (global_idx >= start_rows[r] && global_idx < end_rows[r]) {
+            return r;
+        }
+    }
+    // Fallback (non dovrebbe succedere se la matrice è ben formata)
+    return -1; 
+}
+
+/**
+ * @brief Builds the partition lookup table for global rows based on local row counts.
+ * Each process contributes its local row count and global start row to build the table.
+ * @param my_local_rows Number of rows owned by this rank.
+ * @param my_global_start Global index of the first row owned by this rank.
+ * @param size Total number of MPI processes.
+ * @return PartitionLookup The constructed partition lookup table.
+ */
+PartitionLookup build_partition_table(int my_local_rows, int my_global_start, int size) {
+    PartitionLookup table;
+    table.start_rows.resize(size); // start_rows[rank] = global index of first row of 'rank'
+    table.end_rows.resize(size);   // end_rows[rank]   = global index of last row of 'rank' (exclusive)
     
+    vector<int> all_starts(size);  // To gather all starting rows
+    vector<int> all_counts(size);  // To gather all local row counts
+    
+    // Ognuno dice a tutti dove inizia e quante righe ha
+    MPI_Allgather(&my_global_start, 1, MPI_INT, all_starts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    MPI_Allgather(&my_local_rows, 1, MPI_INT, all_counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+                  
+    for(int i=0; i<size; i++) {
+        table.start_rows[i] = all_starts[i];
+        table.end_rows[i]   = all_starts[i] + all_counts[i];
+    }
+    return table;
+}
+
+GhostCommunicationPlan setup_ghost_exchange(const CSRMatrix& mat, int rank, int size) {
+    GhostCommunicationPlan plan;
+
+    // Capire chi possiede i ghost che ci servono
+    PartitionLookup lookup = build_partition_table(mat.local_rows, mat.global_start_row, size);
+    
+    // 1. Organizza richieste: Per ogni ghost, chi lo possiede?
+    // La matrice ha già ghost_ids popolato. L'indice k in ghost_ids corrisponde 
+    // all'indice locale (local_rows + k).
+    vector<vector<int>> requests_by_rank(size);
+    vector<vector<int>> target_local_indices_by_rank(size); // Ci serve sapere anche DOVE va messo quel dato (indice locale del ghost)
+    
+    for (size_t i = 0; i < mat.ghost_ids.size(); ++i) {
+        int global_ghost_id = mat.ghost_ids[i];
+        int target_local_idx = mat.local_rows + i; // Dove lo metterò nel mio vettore
+
+        int owner = lookup.find_owner(global_ghost_id);
+        if (owner != -1 && owner != rank) {
+            requests_by_rank[owner].push_back(global_ghost_id);
+            target_local_indices_by_rank[owner].push_back(target_local_idx);
+        }
+    }
+
+    // 2. Costruzione Recv Plan & Mapping
+    vector<int> flat_requests; // Lista piatta di ID globali da chiedere
+    vector<int> req_counts(size, 0);
+    vector<int> req_displs(size, 0);
+    
+    plan.map_recv_to_local_index.clear();
+
+    for (int r = 0; r < size; r++) {
+        req_counts[r] = requests_by_rank[r].size();
+        req_displs[r] = (r == 0) ? 0 : req_displs[r-1] + req_counts[r-1];
+        
+        if (req_counts[r] > 0) {
+            plan.neighbors_to_recv_from.push_back(r);
+            // Appendo richieste
+            flat_requests.insert(flat_requests.end(), requests_by_rank[r].begin(), requests_by_rank[r].end());
+            // Appendo mapping (questo dato ricevuto da R andrà nell'indice X)
+            plan.map_recv_to_local_index.insert(plan.map_recv_to_local_index.end(), 
+                                                target_local_indices_by_rank[r].begin(), 
+                                                target_local_indices_by_rank[r].end());
+        }
+    }
+    
+    plan.recv_counts = req_counts;
+    plan.recv_displs = req_displs;
+    plan.total_ghosts_to_recv = flat_requests.size();
+
+    // 3. Handshake (Scambio numero richieste)
+    vector<int> send_counts(size);
+    MPI_Alltoall(req_counts.data(), 1, MPI_INT, send_counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+
+    // 4. Ricezione degli ID specifici richiesti dagli altri
+    vector<int> send_displs(size, 0);
+    for(int i=1; i<size; i++) send_displs[i] = send_displs[i-1] + send_counts[i-1];
+    
+    int total_to_send = send_displs[size-1] + send_counts[size-1];
+    vector<int> indices_requested_global(total_to_send);
+
+    MPI_Alltoallv(flat_requests.data(), req_counts.data(), req_displs.data(), MPI_INT,
+                  indices_requested_global.data(), send_counts.data(), send_displs.data(), MPI_INT,
+                  MPI_COMM_WORLD);
+
+    // 5. Costruzione Send Plan (Converti Global ID -> Mio Local ID)
+    plan.indices_to_send.resize(total_to_send);
+    for(int i=0; i<total_to_send; i++) {
+        // Mi chiedono un indice che possiedo. La conversione è: Global - MioStart
+        plan.indices_to_send[i] = indices_requested_global[i] - mat.global_start_row;
+    }
+
+    plan.send_counts = send_counts;
+    plan.send_displs = send_displs;
+    
+    for(int r=0; r<size; r++) if(send_counts[r] > 0) plan.neighbors_to_send_to.push_back(r);
+
+    return plan;
+}
+
+void generate_distributed_vector(int global_dimension, int rank, int size, vector<double>& local_vec) {
     // --- 1. Calculate Local Portion Size (Partitioning) ---
     // We determine how many elements this specific rank needs to generate.
     
     int base_count = global_dimension / size;
     int remainder = global_dimension % size;
     
-    // Arrays required by MPI_Allgatherv to know everyone's portion size
-    vector<int> all_counts(size); // Maps how many elements EACH process contributes to the global vector. Index 'i' corresponds to the count for Rank 'i'
-    vector<int> all_displs(size); // Maps the starting index (offset) in the global vector for EACH process's data.  Index 'i' corresponds to the displacement for Rank 'i'
-    
-    int current_disp = 0;
-    for (int r = 0; r < size; r++) {
-        // Distribute the remainder evenly among the first ranks
-        int count = base_count + (r < remainder ? 1 : 0);
-        
-        all_counts[r] = count;
-        all_displs[r] = current_disp;
-        
-        current_disp += count;
-    }
-    
-    // My specific workload
-    int my_count = all_counts[rank];
+    int my_count = base_count + (rank < remainder ? 1 : 0);
 
     // --- 2. Simple Random Generation (Your Approach) ---
-    vector<double> local_vec(my_count);
+    local_vec.resize(my_count);
 
     // CRITICAL: We add 'rank' to the seed.
     // Since MPI processes start simultaneously, time(nullptr) would be identical for all.
     // Adding 'rank' ensures each process generates a different sequence.
     srand(static_cast<unsigned int>(time(nullptr)) + rank);
 
-    // Fill with random values in [-1, 1] using standard rand()
+    // Fill with random values in [-1, 1]
     for (int i = 0; i < my_count; ++i) {
         local_vec[i] = (static_cast<double>(rand()) / RAND_MAX) * 2.0 - 1.0;
     }
-
-    // --- 3. Global Assembly (Allgather) ---
-    // Resize the output vector to hold the entire global vector
-    full_vec.resize(global_dimension);
-
-    // Combine all local parts into the full vector on every process
-    MPI_Allgatherv(local_vec.data(), my_count, MPI_DOUBLE,          // Send my part
-                   full_vec.data(), all_counts.data(), all_displs.data(), MPI_DOUBLE, // Receive everyone's parts
-                   MPI_COMM_WORLD);
 }
 
-void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, double time_p90, double gflops) {    
+void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, double time_p90_ms, double gflops) {    
     // 1. Open file in Append Mode
     ofstream file(output_path, ios::app);
     
@@ -78,103 +171,113 @@ void log_strong_scaling_csv(const string& output_path, const string& matrix_name
     }
 
     // 4. Write Data Row
-    file << matrix_name << "," << size << "," << time_p90 << "," << gflops << endl;
+    file << matrix_name << "," << size << "," << time_p90_ms << "," << gflops << endl;
     
     // 5. Close File
     file.close();
 }
 
+void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local, 
+                              const string& matrix_name, const string& output_path, 
+                              int rank, int size, long long total_nnz) {
 
-void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_vector, 
-                        const string& matrix_name, const string& output_path, 
-                        int total_nnz, int rank, int size) {
-    const int N_RUNS = 10; // Number of benchmark iterations
+    // 1. Setup Piano Comunicazione (mat è già locale/rinumerata)
+    GhostCommunicationPlan plan = setup_ghost_exchange(mat, rank, size);
 
-    // --- A. Setup Output Buffer (Y) ---
-    // Dobbiamo sapere quanti elementi produce ogni rank (local_rows) per raccoglierli.
-    vector<int> y_counts(size); // Quanti elementi produce ogni rank
-    vector<int> y_displs(size); // Dove inizia il blocco di ogni rank nel vettore globale
-    
-    // 1. Ogni processo dice a tutti quante righe possiede
-    MPI_Allgather(&mat.local_rows, 1, MPI_INT, y_counts.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    // 2. Allocazione Vettore Compatto (Locale + Ghost)
+    int compact_size = mat.local_rows + mat.ghost_ids.size();
+    vector<double> x_compact(compact_size);
 
-    // 2. Calcolo degli offset (displacements)
-    y_displs[0] = 0;
-    for (int i = 1; i < size; i++) {
-        y_displs[i] = y_displs[i-1] + y_counts[i-1];
+    // Copio i miei dati fissi all'inizio
+    for(int i=0; i<mat.local_rows; i++) {
+        x_compact[i] = x_local[i];
     }
 
-    // 3. Allocazione vettore risultato globale
-    int total_rows_global = y_displs[size-1] + y_counts[size-1];
-    vector<double> y_global(total_rows_global);
+    // Buffer MPI
+    vector<double> send_buf(plan.indices_to_send.size());
+    vector<double> recv_buf(plan.total_ghosts_to_recv);
+    vector<MPI_Request> reqs;
+    reqs.reserve(size * 2);
 
-    // --- B. Warmup (1 Run - Senza Tempo) ---
-    vector<double> y_warmup = mat.multiply(x_vector);
-    // Facciamo anche la gather per scaldare la rete
-    MPI_Allgatherv(y_warmup.data(), mat.local_rows, MPI_DOUBLE, 
-                   y_global.data(), y_counts.data(), y_displs.data(), MPI_DOUBLE, MPI_COMM_WORLD);
-    
-    MPI_Barrier(MPI_COMM_WORLD); // Sincronizziamo prima del benchmark
+    const int N_RUNS = 10;
+    vector<double> run_times;
 
-    // --- C. Loop di Misurazione (10 Volte) ---
-    vector<double> run_times; // Store times for each run
-    if (rank == 0) run_times.reserve(N_RUNS);
+    MPI_Barrier(MPI_COMM_WORLD); 
 
-    for (int i = 0; i < N_RUNS; i++) {
-        MPI_Barrier(MPI_COMM_WORLD); // Start sincronizzato
-        
-        double t_start = MPI_Wtime();
+    for(int run = -1; run < N_RUNS; run++) {
+        MPI_Barrier(MPI_COMM_WORLD);
+        double start = (run >= 0) ? MPI_Wtime() : 0.0;
+        reqs.clear();
 
-        // 1. CALCOLO (CPU Phase)
-        // Ogni rank produce il suo pezzo locale
-        vector<double> y_local = mat.multiply(x_vector);
+        // A. Pack & Send
+        for(int dest : plan.neighbors_to_send_to) {
+            int count = plan.send_counts[dest];
+            int offset = plan.send_displs[dest];
+            for(int k=0; k<count; k++) {
+                // Leggo dal mio x_compact (parte locale) e metto nel buffer
+                send_buf[offset+k] = x_compact[plan.indices_to_send[offset+k]];
+            }
+            MPI_Request r;
+            MPI_Isend(&send_buf[offset], count, MPI_DOUBLE, dest, 0, MPI_COMM_WORLD, &r);
+            reqs.push_back(r);
+        }
 
-        // 2. RACCOLTA RISULTATI (Network Phase)
-        // Mettiamo insieme i pezzi. Qui paghiamo la latenza di rete.
-        // Questo simula la necessità di avere il risultato disponibile per l'iterazione successiva.
-        MPI_Allgatherv(y_local.data(), mat.local_rows, MPI_DOUBLE, 
-                       y_global.data(), y_counts.data(), y_displs.data(), MPI_DOUBLE, MPI_COMM_WORLD);
+        // B. Recv
+        for(int src : plan.neighbors_to_recv_from) {
+            MPI_Request r;
+            MPI_Irecv(&recv_buf[plan.recv_displs[src]], plan.recv_counts[src], MPI_DOUBLE, src, 0, MPI_COMM_WORLD, &r);
+            reqs.push_back(r);
+        }
 
-        double t_end = MPI_Wtime();
-        
-        // Il tempo include: Calcolo + Attesa Rete + Trasferimento Dati
-        double local_time = t_end - t_start;
+        if(!reqs.empty()) MPI_Waitall(reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
 
-        // RIDUZIONE: Il tempo del sistema è il tempo del processo più lento
-        double global_time = 0.0;
-        MPI_Reduce(&local_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        // C. Unpack (Con mappa di reindirizzamento)
+        // I dati arrivati in recv_buf vanno distribuiti nell'area ghost di x_compact
+        for(size_t i=0; i<plan.map_recv_to_local_index.size(); i++) {
+            int target_idx = plan.map_recv_to_local_index[i];
+            x_compact[target_idx] = recv_buf[i];
+        }
 
-        if (rank == 0) {
-            run_times.push_back(global_time);
+        // D. Compute 
+        mat.multiply(x_compact);
+
+        if (run >= 0) {
+            double end = MPI_Wtime();
+            double local_t = end - start;
+            double max_t = 0;
+            MPI_Reduce(&local_t, &max_t, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            if(rank == 0) run_times.push_back(max_t);
         }
     }
 
-    // --- D. Statistiche e Log (Solo Rank 0) ---
+    // --- 4. Statistiche e Log (Solo Rank 0) ---
     if (rank == 0) {
         sort(run_times.begin(), run_times.end());
-
-        // 90esimo Percentile
+        
+        // Calcolo 90esimo percentile
         int p90_idx = (int)ceil(0.9 * N_RUNS) - 1;
         if (p90_idx >= N_RUNS) p90_idx = N_RUNS - 1;
-        
         double time_p90 = run_times[p90_idx];
 
-        // GFLOPs Calculation
-        double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9); // Calculate GFLOPS
-        time_p90 *= 1000.0; // Convert time_p90 to milliseconds
+        // Calcolo GFLOPS
+        // GFLOPS = (2 * NNZ Totali) / (Tempo in secondi * 10^9)
+        double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9);
         
-        // --- E. Log to CSV ---
+        // Convertiamo tempo in ms per il CSV
+        time_p90 *= 1000.0;
+
         log_strong_scaling_csv(output_path, matrix_name, size, time_p90, gflops);
     }
-}    
-
+}
 
 CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per_row, int rank) {
     CSRMatrix mat;
+
+    // 1. Setup Dimensioni Locali
     mat.local_rows = local_rows;
     mat.local_nnz = local_rows * nnz_per_row;
     
-    // Calcolo start row globale (utile solo per coerenza, non critico per il calcolo locale)
+    // Calcolo start row globale (In Weak Scaling è semplice: fisso per ogni rank)
     mat.global_start_row = rank * local_rows;
 
     // Resize vettori
@@ -192,13 +295,14 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
         // Usiamo un set per generare indici di colonna unici e ordinati
         set<int> cols;
         while (cols.size() < (size_t)nnz_per_row) {
+            // Generiamo una colonna casuale nell'intervallo GLOBALE [0, global_cols)
             int rand_col = rand() % global_cols;
             cols.insert(rand_col);
         }
 
         // Copiamo nel vettore CSR
         for (int c : cols) {
-            mat.col_ind[current_nnz_idx] = c;
+            mat.col_ind[current_nnz_idx] = c; // Qui salviamo l'indice GLOBALE
             mat.values[current_nnz_idx] = (double)rand() / RAND_MAX; // Valore tra 0 e 1
             current_nnz_idx++;
         }
@@ -206,10 +310,13 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
         mat.row_ptr[i+1] = current_nnz_idx;
     }
 
+    // Converti indici globali in locali e popola ghost_ids
+    convert_matrix_to_local(mat);
+
     return mat;
 }
 
-void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, double time_p90, double gflops) {
+void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, double time_p90_ms, double gflops) {
     ofstream file(output_path, ios::app);
     if (!file.is_open()) return;
 
@@ -218,7 +325,7 @@ void log_weak_scaling_csv(const string& output_path, int size, int global_rows, 
         file << "MPI_Procs,Global_Rows,Global_NNZ,Time_P90_ms,GFLOPS" << endl;
     }
 
-    file << size << "," << global_rows << "," << global_nnz << "," << time_p90 << "," << gflops << endl;
+    file << size << "," << global_rows << "," << global_nnz << "," << time_p90_ms << "," << gflops << endl;
     file.close();
 }
 
@@ -226,55 +333,81 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec,
                       const string& output_path, int rows_per_proc, 
                       long long global_nnz, int rank, int size) {
     
-    const int N_RUNS = 10;
-    
-    // --- 1. Setup Buffer Risultati (Y Globale) ---
-    // Nel Weak Scaling è semplice: ogni processo ha esattamente 'rows_per_proc' righe.
-    int global_rows = rows_per_proc * size;
-    
-    vector<int> y_counts(size, rows_per_proc); // Tutti contribuiscono allo stesso modo
-    vector<int> y_displs(size);
-    
-    for (int i = 0; i < size; i++) {
-        y_displs[i] = i * rows_per_proc;
+    // 1. Setup Piano Comunicazione (mat è già locale/rinumerata)
+    GhostCommunicationPlan plan = setup_ghost_exchange(mat, rank, size);
+
+    // 2. Allocazione Vettore Compatto (Locale + Ghost)
+    // x_vec qui è la porzione LOCALE del vettore (lunga local_rows)
+    int compact_size = mat.local_rows + mat.ghost_ids.size();
+    vector<double> x_compact(compact_size);
+
+    // Copio i miei dati fissi all'inizio
+    for(int i=0; i<mat.local_rows; i++) {
+        x_compact[i] = x_vec[i];
     }
-    
-    vector<double> y_global(global_rows);
 
-    // --- 2. Warmup (1 Run - Non misurata) ---
-    
-    vector<double> y_warmup = mat.multiply(x_vec);
-    MPI_Allgatherv(y_warmup.data(), rows_per_proc, MPI_DOUBLE,
-                    y_global.data(), y_counts.data(), y_displs.data(), MPI_DOUBLE, MPI_COMM_WORLD);
-    
-    MPI_Barrier(MPI_COMM_WORLD); // Sincronizzazione pre-benchmark
+    // Buffer MPI
+    vector<double> send_buf(plan.indices_to_send.size());
+    vector<double> recv_buf(plan.total_ghosts_to_recv);
+    vector<MPI_Request> reqs;
+    reqs.reserve(size * 2);
 
-    // --- 3. Loop di Misurazione (10 Runs) ---
+    const int N_RUNS = 10;
     vector<double> run_times;
     if (rank == 0) run_times.reserve(N_RUNS);
 
-    for (int i = 0; i < N_RUNS; i++) {
-        MPI_Barrier(MPI_COMM_WORLD); // Start pulito
+    MPI_Barrier(MPI_COMM_WORLD); // Sincronizzazione pre-benchmark
+
+    for (int run = -1; run < N_RUNS; run++) {
+        MPI_Barrier(MPI_COMM_WORLD); 
+        double start = (run >= 0) ? MPI_Wtime() : 0.0;
+        reqs.clear();
+
+        // --- A. GHOST EXCHANGE (Halo) ---
         
-        double t_start = MPI_Wtime();
+        // 1. Pack & Send
+        for(int dest : plan.neighbors_to_send_to) {
+            int count = plan.send_counts[dest];
+            int offset = plan.send_displs[dest];
+            for(int k=0; k<count; k++) {
+                send_buf[offset+k] = x_compact[plan.indices_to_send[offset+k]];
+            }
+            MPI_Request r;
+            MPI_Isend(&send_buf[offset], count, MPI_DOUBLE, dest, 0, MPI_COMM_WORLD, &r);
+            reqs.push_back(r);
+        }
+
+        // 2. Recv
+        for(int src : plan.neighbors_to_recv_from) {
+            MPI_Request r;
+            MPI_Irecv(&recv_buf[plan.recv_displs[src]], plan.recv_counts[src], MPI_DOUBLE, src, 0, MPI_COMM_WORLD, &r);
+            reqs.push_back(r);
+        }
+
+        // 3. Wait
+        if(!reqs.empty()) MPI_Waitall(reqs.size(), reqs.data(), MPI_STATUSES_IGNORE);
+
+        // 4. Unpack
+        for(size_t i=0; i<plan.map_recv_to_local_index.size(); i++) {
+            int target_idx = plan.map_recv_to_local_index[i];
+            x_compact[target_idx] = recv_buf[i];
+        }
+
+        // --- B. COMPUTE ---
+        mat.multiply(x_compact);
         
-        // A. Calcolo Locale
-        vector<double> y_local = mat.multiply(x_vec);
-        
-        // B. Comunicazione Globale
-        MPI_Allgatherv(y_local.data(), rows_per_proc, MPI_DOUBLE,
-                       y_global.data(), y_counts.data(), y_displs.data(), MPI_DOUBLE, MPI_COMM_WORLD);
-        
-        double t_end = MPI_Wtime();
-        
-        double local_time = t_end - t_start;
-        double max_time = 0.0;
-        
-        // Prendiamo il tempo del processo più lento (worst-case latency)
-        MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-        
-        if (rank == 0) {
-            run_times.push_back(max_time);
+        // Fine Misurazione
+        if (run >= 0) {
+            double end = MPI_Wtime();
+            double local_time = end - start;
+            double max_time = 0.0;
+            
+            // Prendiamo il tempo del processo più lento (collo di bottiglia)
+            MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            
+            if (rank == 0) {
+                run_times.push_back(max_time);
+            }
         }
     }
 
@@ -293,6 +426,9 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec,
         
         // Convertiamo tempo in ms per il CSV
         time_p90 *= 1000.0;
+        
+        // Calcoliamo righe globali solo per il log
+        int global_rows = rows_per_proc * size;
 
         log_weak_scaling_csv(output_path, size, global_rows, global_nnz, time_p90, gflops);
     }

@@ -35,7 +35,7 @@ cd build
 
 # Run CMake and Make
 # We build in Release mode for max performance (-O3)
-cmake -DCMAKE_BUILD_TYPE=Release ..
+CC=mpicc CXX=mpic++ cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j4
 
 # Check if compilation was successful
@@ -61,3 +61,4 @@ mkdir -p logs/weak_scaling
 # Submit the strong scaling job
 echo ">>> Submitting strong scaling job..."
 qsub scripts/run_strong_scaling.pbs
+qsub scripts/run_weak_scaling.pbs

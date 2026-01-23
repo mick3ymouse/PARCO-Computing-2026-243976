@@ -36,11 +36,10 @@ int main(int argc, char** argv) {
     int total_rows, total_cols, total_nnz;
     read_global_metadata(matrix_folder + "/meta.bin", total_rows, total_cols, total_nnz);
 
-    vector<double> x_vector;
+    vector<double> x_local;
     
-    // Generate random vector in parallel and assemble full copy via Allgather
-    generate_distributed_vector(total_cols, rank, size, x_vector);
-
+    // Generate random vector in parallel (distributed)
+    generate_distributed_vector(total_rows, rank, size, x_local);
 
     // Ricavo il nome della matrice per il CSV
     string matrix_name = matrix_folder;
@@ -49,7 +48,7 @@ int main(int argc, char** argv) {
 
     // --- 5. Computation Phase (SpMV) ---
     // The core multiplication: y = A * x
-    run_strong_scaling(my_matrix, x_vector, matrix_name, output_csv_path, total_nnz, rank, size);
+    run_strong_scaling(my_matrix, x_local, matrix_name, output_csv_path, rank, size, (long long) total_nnz);
 
     // --- 6. Finalization ---
     MPI_Finalize();

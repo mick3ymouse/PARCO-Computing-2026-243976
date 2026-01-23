@@ -12,7 +12,7 @@
 # -------------------------------------------------
 
 echo "=========================================="
-echo "  SparseMatrix STRONG SCALING SCRIPT"
+echo "  SpMV: Strong Scaling Benchmark"
 echo "=========================================="
 
 # ======================================
@@ -98,8 +98,8 @@ for matrix_path in "$MATRICES_ROOT"/*; do
     fi
 done
 
-echo ">>> All Tests Completed."
-
+echo ""
+echo ">>> Strong Scaling Tests Completed."
 
 # ======================================
 # SUMMARY GENERATION
@@ -152,7 +152,7 @@ else
 fi
 
 # Crearte summary file
-SUMMARY_FILE="results/strong_scaling_summary.txt"
+SUMMARY_FILE="logs/strong_scaling/strong_scaling_summary.txt"
 {
     echo "============================================================"
     echo "  HPC BENCHMARK - SYSTEM & EXECUTION SUMMARY"
@@ -190,8 +190,7 @@ SUMMARY_FILE="results/strong_scaling_summary.txt"
     echo "------------------------------------------------------------"
     echo "  OUTPUT FILES"
     echo "------------------------------------------------------------"
-    echo "Timings Data:     results/timings.csv" # Modifica se il nome del tuo csv è diverso
-    
+    echo "Data:             $BENCH_FILE"     
 } > "$SUMMARY_FILE"
 
-echo "Summary generato con successo in: $SUMMARY_FILE"
+echo ">>> Summary saved to: $SUMMARY_FILE"

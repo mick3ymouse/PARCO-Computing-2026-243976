@@ -12,7 +12,7 @@
 # -------------------------------------------------
 
 echo "=========================================="
-echo "  SparseMatrix WEAK SCALING SCRIPT"
+echo "  SpMV: Weak Scaling Benchmark"
 echo "=========================================="
 
 # ======================================
@@ -63,12 +63,106 @@ BASE_ROWS=10000   # Ogni core avrà sempre 10k righe
 NNZ_ROW=50        # Densità fissa
 
 # Execute weak scaling tests for different process counts
-for P in 1 2 4 8 16 32 64; do
+for P in 1 2 4; do
     echo ">> Running with $P processes..."
     
     # Mpirun calcolerà la dimensione globale = BASE_ROWS * P
-    mpirun -np $P ./build/main_weak $BASE_ROWS $NNZ_ROW
+    mpirun -np $P build/spmv_weak_exec $BASE_ROWS $NNZ_ROW
 done
 
 echo ""
 echo ">>> Weak Scaling Tests completed."
+
+# ======================================
+# SUMMARY GENERATION
+# ======================================
+echo ""
+echo "=========================================="
+echo "  Benchmark Weak Scaling Complete!"
+echo "=========================================="
+echo "End time: $(date)"
+echo "Results saved to: $BENCH_FILE"
+echo ""
+echo ">>> Generating system summary..."
+
+LSCPU_OUTPUT=$(lscpu 2>/dev/null)
+FREE_OUTPUT=$(free -h 2>/dev/null)
+OS_VERSION=$(grep -E '^(NAME|VERSION)=' /etc/os-release | cut -d'"' -f2 | paste -sd " " -)
+KERNEL_VERSION=$(uname -r)
+
+# Helper function to parse system info
+parse_cpu() {
+    echo "$LSCPU_OUTPUT" | grep -i "$1" | awk -F ':' '{print $2}' | sed 's/^[ \t]*//' | head -n 1
+}
+
+# Trova interfaccia attiva (escludendo loopback)
+ACTIVE_IF=$(ip -o link show up | grep -v "lo" | awk -F': ' '{print $2}' | head -n 1)
+
+if [ -n "$ACTIVE_IF" ]; then
+    # Leggi velocità e converti in Gbps
+    RAW_SPEED=$(cat /sys/class/net/$ACTIVE_IF/speed 2>/dev/null)
+    if [ -n "$RAW_SPEED" ]; then
+        NET_SPEED="$((RAW_SPEED / 1000)) Gbps"
+    else
+        NET_SPEED="Unknown"
+    fi
+    
+    # Cerca modello Broadcom/Mellanox (Hardware HPC)
+    NET_MODEL=$(/sbin/lspci | grep -E -i "Broadcom|Mellanox" | cut -d: -f3- | sed 's/^[ \t]*//' | head -n 1)
+    
+    # Check RDMA (se il comando esiste)
+    if command -v ibv_devinfo &> /dev/null; then
+       RDMA_STATUS="Available (RoCE/IB Driver Active)"
+    else
+       RDMA_STATUS="Not Detected (TCP/IP only)"
+    fi
+else
+    ACTIVE_IF="None"
+    NET_SPEED="N/A"
+    NET_MODEL="Unknown"
+    RDMA_STATUS="N/A"
+fi
+
+# Crearte summary file
+SUMMARY_FILE="logs/weak_scaling/weak_scaling_summary.txt"
+{
+    echo "============================================================"
+    echo "  HPC BENCHMARK - SYSTEM & EXECUTION SUMMARY"
+    echo "============================================================"
+    echo "Date:             $(date)"
+    echo "Hostname:         $(hostname)"
+    echo "OS / Kernel:      $OS_VERSION ($KERNEL_VERSION)"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  COMPUTING RESOURCES (CPU/RAM)"
+    echo "------------------------------------------------------------"
+    echo "CPU Model:        $(parse_cpu "Model name")"
+    echo "Architecture:     $(parse_cpu "Architecture")"
+    echo "Total Sockets:    $(parse_cpu "^Socket(s):")"
+    echo "Cores per Socket: $(parse_cpu "^Core(s) per socket:")"
+    echo "Total Phys Cores: $(parse_cpu "^CPU(s):")"
+    echo "L3 Cache:         $(parse_cpu "L3 cache")"
+    echo "Total Memory:     $(echo "$FREE_OUTPUT" | grep 'Mem:' | awk '{print $2}')"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  INTERCONNECT TOPOLOGY (NETWORK)"
+    echo "------------------------------------------------------------"
+    echo "Active Interface: $ACTIVE_IF"
+    echo "Link Speed:       $NET_SPEED"
+    echo "Adapter Model:    $NET_MODEL"
+    echo "Transport Proto:  $RDMA_STATUS"
+    echo "Jumbo Frames:     $(ip link show $ACTIVE_IF | grep -o 'mtu [0-9]*' | awk '{print $2}')"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  SOFTWARE ENVIRONMENT"
+    echo "------------------------------------------------------------"
+    echo "GCC Version:      $(gcc --version | head -n 1)"
+    echo "MPI Version:      $(mpirun --version | head -n 1)"
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  OUTPUT FILES"
+    echo "------------------------------------------------------------"
+    echo "Data:             $BENCH_FILE"     
+} > "$SUMMARY_FILE"
+
+echo ">>> Summary saved to: $SUMMARY_FILE"

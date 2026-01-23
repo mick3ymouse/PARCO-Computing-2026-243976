@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
         cout << "Processes:      " << size << endl;
         cout << "Rows per Proc:  " << rows_per_proc << endl;
         cout << "Global Size:    " << global_rows << " x " << global_cols << endl;
-        cout << "Est. Total NNZ: " << global_nnz << endl;
+        cout << "Total NNZ: " << global_nnz << endl << endl;
     }
 
     // 3. Generazione Matrice Sintetica (Locale)

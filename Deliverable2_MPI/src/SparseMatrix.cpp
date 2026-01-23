@@ -1,6 +1,7 @@
 #include "SparseMatrix.h"
 #include <iostream>
 #include <vector>
+#include <map>
 
 using namespace std;
 
@@ -30,7 +31,6 @@ void load_matrix_parallel(const string& folder_path, int rank, int size, CSRMatr
     // --- STEP 2: Calculate 1D Row Partitioning ---
     // We distribute rows as evenly as possible. 
     // If total_rows % size != 0, the first 'remainder' ranks get 1 extra row.
-    
     int rows_per_proc = total_rows / size;
     int remainder = total_rows % size;
 
@@ -47,14 +47,10 @@ void load_matrix_parallel(const string& folder_path, int rank, int size, CSRMatr
     // --- STEP 3: Read 'row_ptr' (Parallel Read) ---
     // We need to read (local_rows + 1) integers.
     // Offset is calculated based on the global start row index.
-    
     mat.row_ptr.resize(mat.local_rows + 1);
-    
     MPI_File fh;
     string ptr_file = folder_path + "/row_ptr.bin";
-    
     MPI_File_open(MPI_COMM_WORLD, ptr_file.c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
-    
     MPI_Offset ptr_offset = (MPI_Offset)mat.global_start_row * sizeof(int);
     MPI_File_read_at(fh, ptr_offset, mat.row_ptr.data(), mat.local_rows + 1, MPI_INT, MPI_STATUS_IGNORE);
     MPI_File_close(&fh);
@@ -63,7 +59,6 @@ void load_matrix_parallel(const string& folder_path, int rank, int size, CSRMatr
     // The values read from row_ptr are global indices into the values/col_ind arrays.
     int global_nnz_start = mat.row_ptr[0];
     int global_nnz_end   = mat.row_ptr[mat.local_rows];
-    
     mat.local_nnz = global_nnz_end - global_nnz_start;
 
     // Normalize row_ptr: local indices must start from 0 for SpMV
@@ -73,7 +68,6 @@ void load_matrix_parallel(const string& folder_path, int rank, int size, CSRMatr
 
     // --- STEP 5: Read 'col_ind' and 'values' (Parallel Read) ---
     // Each rank jumps to 'global_nnz_start' in these files and reads 'local_nnz' items.
-
     mat.col_ind.resize(mat.local_nnz);
     mat.values.resize(mat.local_nnz);
 
@@ -90,64 +84,59 @@ void load_matrix_parallel(const string& folder_path, int rank, int size, CSRMatr
     MPI_File_open(MPI_COMM_WORLD, (folder_path + "/val.bin").c_str(), MPI_MODE_RDONLY, MPI_INFO_NULL, &fh);
     MPI_File_read_at(fh, val_offset, mat.values.data(), mat.local_nnz, MPI_DOUBLE, MPI_STATUS_IGNORE);
     MPI_File_close(&fh);
+
+    // --- STEP 6: Convert Global Col Indices to Local Indices ---
+    convert_matrix_to_local(mat);
+}
+
+void convert_matrix_to_local(CSRMatrix& mat) {
+    int my_start = mat.global_start_row;
+    int my_end   = mat.global_start_row + mat.local_rows;
+    
+    // Mappa: ID Globale -> ID Locale Nuovo
+    map<int, int> global_to_local;
+    vector<int> ghosts_found;
+    int next_ghost_local_id = mat.local_rows; // I ghost iniziano dopo le mie righe
+
+    // Scansioniamo tutta la matrice
+    for (int& col : mat.col_ind) {
+        int global_id = col;
+
+        // Se è una colonna MIA
+        if (global_id >= my_start && global_id < my_end) {
+            col = global_id - my_start; // Diventa 0, 1, ... local_rows-1
+        } 
+        // Se è un GHOST
+        else {
+            // L'abbiamo già visto?
+            if (global_to_local.find(global_id) == global_to_local.end()) {
+                // No, è nuovo. Creiamo una nuova entry.
+                global_to_local[global_id] = next_ghost_local_id;
+                ghosts_found.push_back(global_id);
+                next_ghost_local_id++;
+            }
+            // Sostituiamo l'indice globale con quello locale
+            col = global_to_local[global_id];
+        }
+    }
+
+    // Salviamo la lista ordinata dei ghost (ci serve per MPI)
+    mat.ghost_ids = ghosts_found;
 }
 
 
 // --- SpMV Implementation ---
 
-vector<double> CSRMatrix::multiply(const vector<double>& x) const {
-    // 1. Prepare the local result vector
-    // It will have the same number of rows as the local matrix partition
-    vector<double> y_local(local_rows, 0.0);
-
-    // 2. Check for Consistency
-    // If the input vector is empty, something went wrong in the logic.
-    if (x.empty()) {
-        cerr << "[Error] Input vector x is empty! Aborting execution." << endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-
-    // 3. CSR Multiplication Kernel
-    // NOTE: In 'load_matrix_parallel', we already normalized 'row_ptr' 
-    // to start from 0 relative to the local 'values' array.
-    // So we can use row_ptr[i] directly as the index.
-
+vector<double> CSRMatrix::multiply(const vector<double>& x_local) const {
+    // x_local contiene: [Miei Dati (0..local_rows-1) | Ghost (local_rows...)]
+    vector<double> y(local_rows);
     for (int i = 0; i < local_rows; ++i) {
-        double dot_product = 0.0;
-
-        // Get the range of non-zero elements for the current row
-        int start_index = row_ptr[i];
-        int end_index   = row_ptr[i+1];
-
-        // Safety Check (Optional - useful for debugging)
-        if (start_index < 0 || end_index > local_nnz) {
-             cerr << "[Error] Row pointer indices out of bounds. "
-                       << "Row: " << i << ", Start: " << start_index << ", End: " << end_index 
-                       << ", Local NNZ: " << local_nnz << endl;
-             MPI_Abort(MPI_COMM_WORLD, 2);
+        double sum = 0.0;
+        for (int k = row_ptr[i]; k < row_ptr[i+1]; ++k) {
+            // Accesso diretto! Nessun controllo, nessuna mappa.
+            sum += values[k] * x_local[col_ind[k]];
         }
-
-        // Inner loop: Dot product of the row and vector x
-        for (int k = start_index; k < end_index; ++k) {
-            
-            // col_ind contains global column indices. 
-            // x is the global vector, so we access it directly.
-            int col_idx = col_ind[k];
-
-            // Segfault prevention check
-            if (col_idx >= (int)x.size()) {
-                cerr << "[Error] Matrix column index exceeds vector size. "
-                          << "Col Index: " << col_idx << ", Vector Size: " << x.size() << endl;
-                MPI_Abort(MPI_COMM_WORLD, 3);
-            }
-
-            // Calculation: A[i][j] * x[j]
-            dot_product += values[k] * x[col_idx];
-        }
-
-        // Store result
-        y_local[i] = dot_product;
+        y[i] = sum;
     }
-
-    return y_local;
+    return y;
 }
