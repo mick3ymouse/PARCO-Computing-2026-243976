@@ -39,8 +39,8 @@ CC=mpicc CXX=mpic++ cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j4
 
 # Check if compilation was successful
-if [ ! -f ./spmv_strong_exec ]; then
-    echo "   Compilation failed! Executable not found."
+if [ $? -ne 0 ]; then
+    echo "   ERROR: Compilation failed (Make returned error)."
     exit 1
 fi
 
