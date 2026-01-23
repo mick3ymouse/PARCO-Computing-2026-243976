@@ -88,7 +88,9 @@ void generate_distributed_vector(int global_dimension, int rank, int size, vecto
  * @param time_p90_ms The 90th percentile of execution time.
  * @param gflops The calculated GFLOPS based on P90 time.
  */
-void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, double time_p90_ms, double gflops);
+void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, 
+                            double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms,
+                            double gflops);
 
 /**
  * @brief Run the Strong Scaling benchmark.
@@ -135,24 +137,26 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
  * @param time_p90_ms The 90th percentile of execution time.
  * @param gflops The calculated GFLOPS based on P90 time.
  */
-void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, double time_p90_ms, double gflops);
+void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, 
+                          double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms, 
+                          double gflops);
 
 /**
  * @brief Run the Weak Scaling benchmark.
- * 1. Uses the provided x_vec for computations.
+ * 1. Uses the provided x_local for computations.
  * 2. Runs a Warmup.
  * 3. Executes the loop 10 times.
  * 4. Collects times and computes the 90th percentile.
  * 5. Calls log_weak_scaling_csv() to report results.
  * * @param mat Local CSR Matrix partition.
- * @param x_vec The input vector (Already generated and distributed).
+ * @param x_local The input vector (Already generated and distributed).
  * @param output_path Path to the CSV output file.
  * @param rows_per_proc Number of rows assigned to each process.
  * @param global_nnz Total non-zeros in the global matrix (for GFLOPS calculation).
  * @param rank MPI Rank.
  * @param size MPI Size.
  */
-void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec, 
+void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local, 
                       const string& output_path, int rows_per_proc, 
                       long long global_nnz, int rank, int size);
 

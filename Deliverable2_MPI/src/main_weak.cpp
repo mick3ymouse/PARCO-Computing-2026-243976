@@ -44,15 +44,14 @@ int main(int argc, char** argv) {
     CSRMatrix mat = generate_synthetic_matrix(rows_per_proc, global_cols, nnz_per_row, rank);
 
     // 4. Generazione Vettore x (Distribuito)
-    // Il vettore x deve essere lungo quanto le colonne globali (global_cols)
-    vector<double> x_vec;
-    generate_distributed_vector(global_cols, rank, size, x_vec);
+    vector<double> x_local;
+    generate_distributed_vector(global_cols, rank, size, x_local);
 
     // 5. Esecuzione Benchmark
     // Passiamo tutti i dati alla funzione dedicata in Utils
     string output_file = "results/weak_scaling.csv";
     
-    run_weak_scaling(mat, x_vec, output_file, rows_per_proc, global_nnz, rank, size);
+    run_weak_scaling(mat, x_local, output_file, rows_per_proc, global_nnz, rank, size);
 
     MPI_Finalize();
     return 0;

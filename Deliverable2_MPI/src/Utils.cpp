@@ -152,8 +152,9 @@ void generate_distributed_vector(int global_dimension, int rank, int size, vecto
         local_vec[i] = (static_cast<double>(rand()) / RAND_MAX) * 2.0 - 1.0;
     }
 }
-
-void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, double time_p90_ms, double gflops) {    
+void log_strong_scaling_csv(const string& output_path, const string& matrix_name, int size, 
+                            double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms, 
+                            double gflops) {
     // 1. Open file in Append Mode
     ofstream file(output_path, ios::app);
     
@@ -161,19 +162,19 @@ void log_strong_scaling_csv(const string& output_path, const string& matrix_name
     if (!file.is_open()) {
         cerr << "[Error] Could not open CSV file: " << output_path 
              << ". Ensure the 'results' directory exists!" << endl;
-        return; // Esce subito se c'è un errore
+        return; 
     }
 
     // 3. Write Header if file is empty
     file.seekp(0, ios_base::end);
     if (file.tellp() == 0) {
-        file << "MatrixName,MPI_Procs,Time_P90_ms,GFLOPS" << endl;
+        file << "MatrixName,MPI_Procs,Time_P90_ms,Time_Comm_ms,Time_Comp_ms,GFLOPS" << endl;
     }
 
     // 4. Write Data Row
-    file << matrix_name << "," << size << "," << time_p90_ms << "," << gflops << endl;
-    
-    // 5. Close File
+    file << matrix_name << "," << size << "," 
+         << time_p90_ms << "," << time_comm_p90_ms << "," << time_comp_p90_ms << "," 
+         << gflops << endl;
     file.close();
 }
 
@@ -200,13 +201,29 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
     reqs.reserve(size * 2);
 
     const int N_RUNS = 10;
-    vector<double> run_times;
+
+    // Vettori per salvare i tempi separati
+    vector<double> run_times_total;
+    vector<double> run_times_comm;
+    vector<double> run_times_comp;
+
+    if (rank == 0) {
+        run_times_total.reserve(N_RUNS);
+        run_times_comm.reserve(N_RUNS);
+        run_times_comp.reserve(N_RUNS);
+    }
 
     MPI_Barrier(MPI_COMM_WORLD); 
 
     for(int run = -1; run < N_RUNS; run++) {
         MPI_Barrier(MPI_COMM_WORLD);
-        double start = (run >= 0) ? MPI_Wtime() : 0.0;
+        
+        // --- START TOTAL TIMER ---
+        double t_start_total = (run >= 0) ? MPI_Wtime() : 0.0;
+        
+        // --- START COMM TIMER ---
+        double t_start_comm = (run >= 0) ? MPI_Wtime() : 0.0;
+
         reqs.clear();
 
         // A. Pack & Send
@@ -238,35 +255,59 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
             x_compact[target_idx] = recv_buf[i];
         }
 
+        // --- END COMM TIMER / START COMP TIMER ---
+        double t_end_comm_start_comp = (run >= 0) ? MPI_Wtime() : 0.0;
+
         // D. Compute 
         mat.multiply(x_compact);
 
+        // --- END COMP TIMER / END TOTAL TIMER ---
+        double t_end_total = (run >= 0) ? MPI_Wtime() : 0.0;
+
         if (run >= 0) {
-            double end = MPI_Wtime();
-            double local_t = end - start;
-            double max_t = 0;
-            MPI_Reduce(&local_t, &max_t, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-            if(rank == 0) run_times.push_back(max_t);
+            double local_total = t_end_total - t_start_total;
+            double local_comm  = t_end_comm_start_comp - t_start_comm;
+            double local_comp  = t_end_total - t_end_comm_start_comp;
+
+            double max_total = 0.0, max_comm = 0.0, max_comp = 0.0;
+
+            // Prendiamo il MAX su tutti i processi per vedere il collo di bottiglia
+            MPI_Reduce(&local_total, &max_total, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_comm,  &max_comm,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_comp,  &max_comp,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+            if(rank == 0) {
+                run_times_total.push_back(max_total);
+                run_times_comm.push_back(max_comm);
+                run_times_comp.push_back(max_comp);
+            }
         }
     }
 
     // --- 4. Statistiche e Log (Solo Rank 0) ---
     if (rank == 0) {
-        sort(run_times.begin(), run_times.end());
+        sort(run_times_total.begin(), run_times_total.end());
+        sort(run_times_comm.begin(),  run_times_comm.end());
+        sort(run_times_comp.begin(),  run_times_comp.end());
         
         // Calcolo 90esimo percentile
         int p90_idx = (int)ceil(0.9 * N_RUNS) - 1;
         if (p90_idx >= N_RUNS) p90_idx = N_RUNS - 1;
-        double time_p90 = run_times[p90_idx];
+        
+        double time_p90 = run_times_total[p90_idx];
+        double comm_p90 = run_times_comm[p90_idx];
+        double comp_p90 = run_times_comp[p90_idx];
 
         // Calcolo GFLOPS
         // GFLOPS = (2 * NNZ Totali) / (Tempo in secondi * 10^9)
         double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9);
         
-        // Convertiamo tempo in ms per il CSV
-        time_p90 *= 1000.0;
-
-        log_strong_scaling_csv(output_path, matrix_name, size, time_p90, gflops);
+        // Log dei risultati
+        log_strong_scaling_csv(output_path, matrix_name, size, 
+                               time_p90 * 1000.0,   // Convert to ms
+                               comm_p90 * 1000.0,   // Convert to ms
+                               comp_p90 * 1000.0,   // Convert to ms
+                               gflops);
     }
 }
 
@@ -316,20 +357,33 @@ CSRMatrix generate_synthetic_matrix(int local_rows, int global_cols, int nnz_per
     return mat;
 }
 
-void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, double time_p90_ms, double gflops) {
+void log_weak_scaling_csv(const string& output_path, int size, int global_rows, int global_nnz, 
+                          double time_p90_ms, double time_comm_p90_ms, double time_comp_p90_ms, 
+                          double gflops) {
+    // 1. Open file in Append Mode
     ofstream file(output_path, ios::app);
-    if (!file.is_open()) return;
-
-    file.seekp(0, ios_base::end);
-    if (file.tellp() == 0) {
-        file << "MPI_Procs,Global_Rows,Global_NNZ,Time_P90_ms,GFLOPS" << endl;
+    
+    // 2. Safety Check
+    if (!file.is_open()) {
+        cerr << "[Error] Could not open CSV file: " << output_path 
+             << ". Ensure the 'results' directory exists!" << endl;
+        return; 
     }
 
-    file << size << "," << global_rows << "," << global_nnz << "," << time_p90_ms << "," << gflops << endl;
+    // 3. Write Header if file is empty
+    file.seekp(0, ios_base::end);
+    if (file.tellp() == 0) {
+        file << "MPI_Procs,Global_Rows,Global_NNZ,Time_P90_ms,Time_Comm_ms,Time_Comp_ms,GFLOPS" << endl;
+    }
+
+    // 4. Write Data Row
+    file << size << "," << global_rows << "," << global_nnz << "," 
+         << time_p90_ms << "," << time_comm_p90_ms << "," << time_comp_p90_ms << "," 
+         << gflops << endl;
     file.close();
 }
 
-void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec, 
+void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local, 
                       const string& output_path, int rows_per_proc, 
                       long long global_nnz, int rank, int size) {
     
@@ -337,13 +391,12 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec,
     GhostCommunicationPlan plan = setup_ghost_exchange(mat, rank, size);
 
     // 2. Allocazione Vettore Compatto (Locale + Ghost)
-    // x_vec qui è la porzione LOCALE del vettore (lunga local_rows)
     int compact_size = mat.local_rows + mat.ghost_ids.size();
     vector<double> x_compact(compact_size);
 
     // Copio i miei dati fissi all'inizio
     for(int i=0; i<mat.local_rows; i++) {
-        x_compact[i] = x_vec[i];
+        x_compact[i] = x_local[i];
     }
 
     // Buffer MPI
@@ -353,14 +406,29 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec,
     reqs.reserve(size * 2);
 
     const int N_RUNS = 10;
-    vector<double> run_times;
-    if (rank == 0) run_times.reserve(N_RUNS);
+
+    // Vettori per tempi separati
+    vector<double> run_times_total;
+    vector<double> run_times_comm;
+    vector<double> run_times_comp;
+
+    if (rank == 0) {
+        run_times_total.reserve(N_RUNS);
+        run_times_comm.reserve(N_RUNS);
+        run_times_comp.reserve(N_RUNS);
+    }
 
     MPI_Barrier(MPI_COMM_WORLD); // Sincronizzazione pre-benchmark
 
     for (int run = -1; run < N_RUNS; run++) {
         MPI_Barrier(MPI_COMM_WORLD); 
-        double start = (run >= 0) ? MPI_Wtime() : 0.0;
+        
+        // --- START TOTAL TIMER ---
+        double t_start_total = (run >= 0) ? MPI_Wtime() : 0.0;
+        
+        // --- START COMM TIMER ---
+        double t_start_comm = (run >= 0) ? MPI_Wtime() : 0.0;
+
         reqs.clear();
 
         // --- A. GHOST EXCHANGE (Halo) ---
@@ -393,43 +461,58 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_vec,
             x_compact[target_idx] = recv_buf[i];
         }
 
+        // --- END COMM TIMER / START COMP TIMER ---
+        double t_end_comm_start_comp = (run >= 0) ? MPI_Wtime() : 0.0;
+
         // --- B. COMPUTE ---
         mat.multiply(x_compact);
         
-        // Fine Misurazione
+        // --- END COMP TIMER / END TOTAL TIMER ---
+        double t_end_total = (run >= 0) ? MPI_Wtime() : 0.0;
+
         if (run >= 0) {
-            double end = MPI_Wtime();
-            double local_time = end - start;
-            double max_time = 0.0;
-            
-            // Prendiamo il tempo del processo più lento (collo di bottiglia)
-            MPI_Reduce(&local_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-            
-            if (rank == 0) {
-                run_times.push_back(max_time);
+            double local_total = t_end_total - t_start_total;
+            double local_comm  = t_end_comm_start_comp - t_start_comm;
+            double local_comp  = t_end_total - t_end_comm_start_comp;
+
+            double max_total = 0.0, max_comm = 0.0, max_comp = 0.0;
+
+            // Prendiamo il MAX su tutti i processi per vedere il collo di bottiglia
+            MPI_Reduce(&local_total, &max_total, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_comm,  &max_comm,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_comp,  &max_comp,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+            if(rank == 0) {
+                run_times_total.push_back(max_total);
+                run_times_comm.push_back(max_comm);
+                run_times_comp.push_back(max_comp);
             }
         }
     }
 
     // --- 4. Statistiche e Log (Solo Rank 0) ---
     if (rank == 0) {
-        sort(run_times.begin(), run_times.end());
+        sort(run_times_total.begin(), run_times_total.end());
+        sort(run_times_comm.begin(),  run_times_comm.end());
+        sort(run_times_comp.begin(),  run_times_comp.end());
         
         // Calcolo 90esimo percentile
         int p90_idx = (int)ceil(0.9 * N_RUNS) - 1;
         if (p90_idx >= N_RUNS) p90_idx = N_RUNS - 1;
-        double time_p90 = run_times[p90_idx];
+        
+        double time_p90 = run_times_total[p90_idx];
+        double comm_p90 = run_times_comm[p90_idx];
+        double comp_p90 = run_times_comp[p90_idx];
 
         // Calcolo GFLOPS
         // GFLOPS = (2 * NNZ Totali) / (Tempo in secondi * 10^9)
-        double gflops = (2.0 * static_cast<double>(global_nnz)) / (time_p90 * 1.0e9);
+        double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9);
         
-        // Convertiamo tempo in ms per il CSV
-        time_p90 *= 1000.0;
-        
-        // Calcoliamo righe globali solo per il log
-        int global_rows = rows_per_proc * size;
-
-        log_weak_scaling_csv(output_path, size, global_rows, global_nnz, time_p90, gflops);
+        // Log dei risultati
+        log_weak_scaling_csv(output_path, size, global_rows, global_nnz, 
+                             time_p90 * 1000.0,    // Convert to ms
+                             comm_p90 * 1000.0,    // Convert to ms
+                             comp_p90 * 1000.0,    // Convert to ms
+                             gflops);
     }
 }
