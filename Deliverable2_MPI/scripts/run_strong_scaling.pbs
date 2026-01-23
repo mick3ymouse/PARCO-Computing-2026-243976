@@ -1,14 +1,14 @@
 #!/bin/bash
 #PBS -N spmv
-#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb
-#PBS -l walltime=00:10:00
+#PBS -l select=4:ncpus=64:mpiprocs=64:mem=32gb
+#PBS -l walltime=02:00:00
 #PBS -q shortCPUQ
 #PBS -o logs/strong_scaling/strong_scaling.log
 #PBS -e logs/strong_scaling/strong_scaling.err
 
 # --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
 # #PBS -m abe
-# #PBS -M your_email@domain.com
+# #PBS -M michimar2003@outlook.com
 # -------------------------------------------------
 
 echo "=========================================="
@@ -85,7 +85,7 @@ for matrix_path in "$MATRICES_ROOT"/*; do
 
         # INNER LOOP: Perform Strong Scaling for the current matrix
         # We run with 1, 2, 4, 8, 16, 32, 64 and 128 MPI processes
-        for P in 1 2 4;
+        for P in 1 2 4 8 16 32 64 128 256;
         do
             echo " >> Running with $P MPI Processes..."
             

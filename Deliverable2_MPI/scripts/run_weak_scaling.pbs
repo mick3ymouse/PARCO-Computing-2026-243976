@@ -1,14 +1,14 @@
 #!/bin/bash
 #PBS -N spmv
-#PBS -l select=1:ncpus=4:mpiprocs=4:mem=1gb
-#PBS -l walltime=00:10:00
+#PBS -l select=4:ncpus=64:mpiprocs=64:mem=32gb
+#PBS -l walltime=02:00:00
 #PBS -q shortCPUQ
 #PBS -o logs/weak_scaling/weak_scaling.log
 #PBS -e logs/weak_scaling/weak_scaling.err
 
 # --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
 # #PBS -m abe
-# #PBS -M your_email@domain.com
+# #PBS -M michimar2003@outlook.com
 # -------------------------------------------------
 
 echo "=========================================="
@@ -63,7 +63,7 @@ BASE_ROWS=10000   # Ogni core avrà sempre 10k righe
 NNZ_ROW=50        # Densità fissa
 
 # Execute weak scaling tests for different process counts
-for P in 1 2 4; do
+for P in 1 2 4 8 16 32 64 128 256; do
     echo ">> Running with $P processes..."
     
     # Mpirun calcolerà la dimensione globale = BASE_ROWS * P
