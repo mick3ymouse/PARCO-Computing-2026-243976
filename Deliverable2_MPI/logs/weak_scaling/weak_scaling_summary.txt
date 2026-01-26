@@ -1,9 +1,9 @@
 ============================================================
   HPC BENCHMARK - SYSTEM & EXECUTION SUMMARY
 ============================================================
-Date:             Fri Jan 23 04:31:12 PM CET 2026
-Hostname:         hpc3-c12-n53.unitn.it
-OS / Kernel:      Rocky Linux 9.7 (Blue Onyx) (5.14.0-503.26.1.el9_5.x86_64)
+Date:             Mon Jan 26 12:13:31 PM CET 2026
+Hostname:         hpc3-c12-n42.unitn.it
+OS / Kernel:      Rocky Linux 9.7 (Blue Onyx) (5.14.0-611.11.1.el9_7.x86_64)
 
 ------------------------------------------------------------
   COMPUTING RESOURCES (CPU/RAM)
@@ -14,16 +14,16 @@ Total Sockets:    4
 Cores per Socket: 24
 Total Phys Cores: 96
 L3 Cache:         143 MiB (4 instances)
-Total Memory:     1.2Ti
+Total Memory:     502Gi
 
 ------------------------------------------------------------
   INTERCONNECT TOPOLOGY (NETWORK)
 ------------------------------------------------------------
-Active Interface: eno1
-Link Speed:       0 Gbps
-Adapter Model:    Broadcom / LSI MegaRAID Tri-Mode SAS3508 (rev 01)
-Transport Proto:  Not Detected (TCP/IP only)
-Jumbo Frames:     1500
+Active Interface: enp109s0f0np0
+Link Speed:       10 Gbps
+Adapter Model:    Broadcom Inc. and subsidiaries BCM57414 NetXtreme-E 10Gb/25Gb RDMA Ethernet Controller (rev 01)
+Transport Proto:  Not Detected
+Jumbo Frames:     9000
 
 ------------------------------------------------------------
   SOFTWARE ENVIRONMENT
