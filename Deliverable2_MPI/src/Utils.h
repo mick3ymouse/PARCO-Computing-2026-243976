@@ -23,34 +23,78 @@ using namespace std;
 * @param map_recv_to_local_index Mapping from received buffer indices to local indices in the augmented vector. 
 */
 struct GhostCommunicationPlan {
-    // --- LATO INVIO (Cosa devo spedire agli altri) ---
-    vector<int> indices_to_send; // Unico buffer contenente TUTTI gli indici locali da spedire
-    vector<int> send_counts;     // Quanti elementi mando al Rank 0, Rank 1...
-    vector<int> send_displs;     // A che indice di 'indices_to_send' iniziano i dati per Rank X
-    vector<int> neighbors_to_send_to; // Lista dei rank a cui devo mandare qualcosa
+    // --- Send Side (Outgoing Data) ---
 
-    // --- LATO RICEZIONE (Cosa devo ricevere) ---
-    vector<int> recv_counts;
-    vector<int> recv_displs;
-    vector<int> map_recv_to_global_index; // Dove copio i dati ricevuti nel vettore 'augmented'
-    vector<int> neighbors_to_recv_from;
-    int total_ghosts_to_recv;
+    // List of local indices to copy into the network send buffer.
+    // These specific elements represent the data required by other ranks.
+    vector<int> indices_to_send;   
 
-    // MAPPA UNPACK: Dove metto i dati ricevuti?
-    // map_recv_to_local_index[i] dice: "L'i-esimo double ricevuto da MPI va messo 
-    // all'indice X del vettore locale (area ghost)".
-    vector<int> map_recv_to_local_index;
+    // Number of elements to send to each rank.
+    // Required argument for MPI_Alltoallv to define packet sizes.
+    vector<int> send_counts;       
+
+    // Starting offset in 'indices_to_send' for each destination rank.
+    // Marks where the data chunk for a specific neighbor begins.
+    vector<int> send_displs;           
+
+    // List of unique rank IDs that requested data from me.
+    vector<int> neighbors_to_send_to;  
+
+
+    // --- Receive Side (Incoming Ghosts) ---
+
+    // MAPPING: Network Buffer Index -> Local Ghost Index.
+    // The i-th element received from the network is stored at local_vector[map[i]].
+    vector<int> map_recv_to_local_index; 
+
+    // MAPPING: Network Buffer Index -> Global Column Index.
+    // Maps received data back to the original matrix column IDs.
+    // Primarily used for debugging and topology verification, not math.
+    vector<int> map_recv_to_global_index; 
+
+    // Number of ghost elements expected from each rank.
+    // Tells MPI how many items to accept from each neighbor.
+    vector<int> recv_counts;     
+    
+    // Starting offset in the receive buffer for data coming from each rank.
+    // Marks where the incoming chunk from a specific neighbor is placed.
+    vector<int> recv_displs;         
+    
+    // List of unique rank IDs that send ghost data to me.
+    // These ranks own the columns that correspond to my ghost entries.
+    vector<int> neighbors_to_recv_from;   
+
+    // Total count of elements to receive (sum of recv_counts).
+    // Defines the required size for the receive buffer and ghost storage.
+    int total_ghosts_to_recv;              
 };
 
 /**
- * @brief Structure to hold the partitioning lookup for global columns.
- * This helps in determining which rank owns which global column index.
+ * @brief Structure to manage the global row partitioning across MPI ranks.
+ * Used to determine which rank owns a specific global index (critical for finding ghost owners).
  */
 struct PartitionLookup {
-    vector<int> start_rows; // start_rows[rank] = indice prima riga del rank
-    vector<int> end_rows;   // end_rows[rank]   = indice ultima riga del rank (esclusa)
+    // Arrays containing the GLOBAL index boundaries for each rank.
+    // Range for Rank 'r' is: [ start_rows[r], end_rows[r] )
+    vector<int> start_rows; // start_rows[rank] = GLOBAL index of the first row owned by 'rank'
+    vector<int> end_rows;   // end_rows[rank]   = GLOBAL index of the last row (exclusive) owned by 'rank'
     
-    // Trova il proprietario cercandolo nella tabella
+    /**
+     * @brief Populates the partition table by gathering data from all ranks.
+     * Each process contributes its local row count and global start index.
+     * @param my_local_rows Number of rows owned by this rank.
+     * @param my_global_start Global index of the first row owned by this rank.
+     * @param size Total number of MPI processes.
+     */
+    void build_partition_table(int my_local_rows, int my_global_start, int size);
+    
+    /**
+     * @brief the rank that owns a specific global index.
+     * In SpMV (y = Ax), vector 'x' is distributed exactly like matrix rows.
+     * Thus, checking who owns Matrix Row 'j' (global) reveals who owns Vector Element x[j].
+     * @param global_col_idx The global column index to search for.
+     * @return int The rank ID of the owner.
+     */
     int find_owner(int global_col_idx) const;
 };
 
@@ -143,12 +187,12 @@ void log_weak_scaling_csv(const string& output_path, int size, int total_rows, i
 
 /**
  * @brief Run the Weak Scaling benchmark.
- * 1. Uses the provided x_local for computations.
+ * 1. Uses the provided x_local for computations + ghost exchanges.
  * 2. Runs a Warmup.
  * 3. Executes the loop 10 times.
  * 4. Collects times and computes the 90th percentile.
  * 5. Calls log_weak_scaling_csv() to report results.
- * * @param mat Local CSR Matrix partition.
+ * @param mat Local CSR Matrix partition.
  * @param x_local The input vector (Already generated and distributed).
  * @param output_path Path to the CSV output file.
  * @param rows_per_proc Number of rows assigned to each process.

@@ -41,7 +41,7 @@ void read_global_metadata(const string& filename, int& rows, int& cols, int& nnz
 /**
  * @brief Reads the binary matrix files in parallel using MPI I/O.
  * Each rank independently calculates its offset and reads its portion.
- * @param folder_path Path containing row_ptr.bin, col_ind.bin, values.bin, meta.bin
+ * @param folder_path Path containing row_ptr.bin, col_ind.bin, val.bin, meta.bin
  * @param rank MPI Rank
  * @param size MPI Size
  * @param mat Output structure to fill

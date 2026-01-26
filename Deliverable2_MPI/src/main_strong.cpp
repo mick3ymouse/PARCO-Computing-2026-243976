@@ -14,9 +14,10 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size); // How many processes?
 
     // --- 2. Argument Validation ---
+    // Usage: ./main_strong <matrix_folder_path> <output_csv_path>
     if (argc < 3) {
         if (rank == 0) {
-            cerr << "Usage: " << argv[0] << " <matrix_folder_path>" << endl;
+            cerr << "Usage: " << argv[0] << " <matrix_folder_path> <output_csv_path>" << endl;
         }
         MPI_Finalize();
         return 1;
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
     // Generate random vector in parallel (distributed)
     generate_distributed_vector(total_rows, rank, size, x_local);
 
-    // Ricavo il nome della matrice per il CSV
+    // Get matrix name from folder path for logging
     string matrix_name = matrix_folder;
     size_t last_slash = matrix_folder.find_last_of("/\\");
     if (last_slash != string::npos) matrix_name = matrix_folder.substr(last_slash + 1);

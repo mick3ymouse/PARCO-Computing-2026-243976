@@ -8,7 +8,7 @@
 
 # --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
 # #PBS -m abe
-# #PBS -M michimar2003@outlook.com
+# #PBS -M your_email@domain.com
 # -------------------------------------------------
 
 echo "=========================================="
@@ -58,20 +58,20 @@ rm -f $BENCH_FILE
 echo "   Saving results to: $BENCH_FILE"
 echo ""
 
-# Parametri Weak Scaling
-BASE_ROWS=100000   # Ogni core avrà sempre 10k righe
-NNZ_ROW=50        # Densità fissa
+# Weak Scaling Parameters
+BASE_ROWS=100000   # Each core will always have 100k rows
+NNZ_ROW=50        # Fixed density
 
 # Execute weak scaling tests for different process counts
 for P in 1 2 4 8 16 32 64 128; do
     echo ">> Running with $P processes..."
     
-    # Mpirun calcolerà la dimensione globale = BASE_ROWS * P
+    # Mpirun will calculate the global size = BASE_ROWS * P
     mpirun  --hostfile $PBS_NODEFILE \
             --oversubscribe \
             -map-by ppr:64:node --bind-to core \
             -np $P \
-            build/spmv_weak_exec $BASE_ROWS $NNZ_ROW
+            build/spmv_weak_exec $BASE_ROWS $NNZ_ROW "$BENCH_FILE"
 done
 
 echo ""
@@ -99,26 +99,37 @@ parse_cpu() {
     echo "$LSCPU_OUTPUT" | grep -i "$1" | awk -F ':' '{print $2}' | sed 's/^[ \t]*//' | head -n 1
 }
 
-# Trova interfaccia attiva (escludendo loopback)
+# Find active network interface (excluding loopback)
 ACTIVE_IF=$(ip -o link show up | grep -v "lo" | awk -F': ' '{print $2}' | head -n 1)
 
 if [ -n "$ACTIVE_IF" ]; then
-    # Leggi velocità e converti in Gbps
+    # Get Link Speed (Gbps)
     RAW_SPEED=$(cat /sys/class/net/$ACTIVE_IF/speed 2>/dev/null)
-    if [ -n "$RAW_SPEED" ]; then
+    if [ -n "$RAW_SPEED" ] && [ "$RAW_SPEED" -ge 0 ]; then
         NET_SPEED="$((RAW_SPEED / 1000)) Gbps"
     else
         NET_SPEED="Unknown"
     fi
     
-    # Cerca modello Broadcom/Mellanox (Hardware HPC)
-    NET_MODEL=$(/sbin/lspci | grep -E -i "Broadcom|Mellanox" | cut -d: -f3- | sed 's/^[ \t]*//' | head -n 1)
-    
-    # Check RDMA (se il comando esiste)
-    if command -v ibv_devinfo &> /dev/null; then
-       RDMA_STATUS="Available (RoCE/IB Driver Active)"
+    # Identify Hardware Model via PCI ID
+    PCI_BUS_ID=$(basename $(readlink /sys/class/net/$ACTIVE_IF/device) 2>/dev/null)
+
+    if [ -n "$PCI_BUS_ID" ]; then
+        # Query specific PCI slot info
+        NET_MODEL=$(/sbin/lspci -s $PCI_BUS_ID 2>/dev/null | cut -d: -f3- | sed 's/^[ \t]*//')
     else
-       RDMA_STATUS="Not Detected (TCP/IP only)"
+        NET_MODEL="Unknown (Non-PCI Interface)"
+    fi
+    
+    # Check RDMA Status
+    if command -v ibv_devinfo &> /dev/null; then
+       if ibv_devinfo | grep -q "PORT_ACTIVE"; then
+           RDMA_STATUS="Available (Active)"
+       else
+           RDMA_STATUS="Inactive (Link Down)"
+       fi
+    else
+       RDMA_STATUS="Not Detected"
     fi
 else
     ACTIVE_IF="None"

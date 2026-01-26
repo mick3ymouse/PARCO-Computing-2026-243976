@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N conv_bin
-#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l select=1:ncpus=4:mem=8gb
 #PBS -l walltime=01:00:00
 #PBS -q shortCPUQ
 #PBS -o logs/conversion/convert_bin.log
@@ -13,7 +13,7 @@
 
 
 echo "=========================================="
-echo "  SparseMatrix: CONVERSION SCRIPT"
+echo "  SparseMatrix: Conversion Script"
 echo "=========================================="
 
 # ======================================

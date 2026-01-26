@@ -4,7 +4,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pathlib import Path
-import sys
 import numpy as np
 import colorsys
 import random
@@ -39,15 +38,22 @@ def setup_dirs(base_path, sub_folder):
 # -------------------------------------------------------------------
 # Helpers
 # -------------------------------------------------------------------
-def finalize_plot(ax, xlabel, ylabel, title, output_file, xticks_labels):
+def finalize_plot(ax, xlabel, ylabel, title, output_file, xticks_labels, config_info=None):
     ax.set_xlabel(xlabel, fontsize=FONTSIZE_LABELS)
     ax.set_ylabel(ylabel, fontsize=FONTSIZE_LABELS)
     ax.set_title(title, fontsize=FONTSIZE_TITLE)
     ax.grid(True, alpha=GRID_ALPHA)
     
-    # Legend alzata per ridurre spazio verticale (-0.15 -> -0.11)
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.11),
-              fancybox=False, shadow=False, ncol=4, frameon=True)
+    if config_info:
+        ax.legend(loc='upper center', bbox_to_anchor=(0.35, -0.12),
+                  fancybox=False, shadow=False, ncol=1, frameon=True)
+        
+        ax.text(0.65, -0.12, config_info, transform=ax.transAxes,
+                fontsize=10, verticalalignment='top', horizontalalignment='center',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
+    else:
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.12),
+                  fancybox=False, shadow=False, ncol=4, frameon=True)
     
     ax.set_xticks(range(len(xticks_labels)))
     ax.set_xticklabels(xticks_labels)
@@ -96,47 +102,51 @@ def generate_matrix_colors(n_matrices):
 # -------------------------------------------------------------------
 # Plotting functions
 # -------------------------------------------------------------------
-def plot_time(df, output_path, title_prefix, xticks):
+def plot_time(df, output_path, title_prefix, xticks, config_info=None):
     plt.figure(figsize=(10, 7))
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Time_P90_ms"], marker=MARKER, linewidth=LINEWIDTH, 
              markersize=MARKERSIZE, label="Total Time (P90)")
+    
     finalize_plot(plt.gca(), "MPI Processes", "Time (ms)", 
                   f"{title_prefix} - Execution Time", 
-                  output_path / f"0_{title_prefix.replace(' ', '_')}_time.png", xticks)
+                  output_path / f"0_{title_prefix.replace(' ', '_')}_time.png", xticks, config_info)
 
-def plot_speedup(df, output_path, title_prefix, xticks, is_weak):
+def plot_speedup(df, output_path, title_prefix, xticks, config_info=None):
     plt.figure(figsize=(10, 7))
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Speedup"], marker=MARKER, linewidth=LINEWIDTH, 
              markersize=MARKERSIZE, label="Measured Speedup", color="tab:blue")
+    
     finalize_plot(plt.gca(), "MPI Processes", "Speedup", 
                   f"{title_prefix} - Speedup", 
-                  output_path / f"1_{title_prefix.replace(' ', '_')}_speedup.png", xticks)
+                  output_path / f"1_{title_prefix.replace(' ', '_')}_speedup.png", xticks, config_info)
 
-def plot_efficiency(df, output_path, title_prefix, xticks):
+def plot_efficiency(df, output_path, title_prefix, xticks, config_info=None):
     plt.figure(figsize=(10, 7))
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Efficiency"], marker=MARKER, linewidth=LINEWIDTH, 
              markersize=MARKERSIZE, color="tab:green", label="Efficiency (%)")
+    
     finalize_plot(plt.gca(), "MPI Processes", "Efficiency (%)", 
                   f"{title_prefix} - Efficiency", 
-                  output_path / f"2_{title_prefix.replace(' ', '_')}_efficiency.png", xticks)
+                  output_path / f"2_{title_prefix.replace(' ', '_')}_efficiency.png", xticks, config_info)
 
-def plot_gflops(df, output_path, title_prefix, xticks):
+def plot_gflops(df, output_path, title_prefix, xticks, config_info=None):
     plt.figure(figsize=(10, 7))
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["GFLOPS"], marker=MARKER, linewidth=LINEWIDTH, 
              markersize=MARKERSIZE, color="tab:red", label="GFLOPS")
+
     finalize_plot(plt.gca(), "MPI Processes", "GFLOPS", 
                   f"{title_prefix} - Throughput", 
-                  output_path / f"3_{title_prefix.replace(' ', '_')}_gflops.png", xticks)
+                  output_path / f"3_{title_prefix.replace(' ', '_')}_gflops.png", xticks, config_info)
 
-def plot_comm_vs_comp(df, output_path, title_prefix, xticks):
+def plot_comm_vs_comp(df, output_path, title_prefix, xticks, config_info=None):
     fig, ax1 = plt.subplots(figsize=(10, 7))
     comp_times = df["Time_Comp_ms"].values
     comm_times = df["Time_Comm_ms"].values
@@ -159,10 +169,20 @@ def plot_comm_vs_comp(df, output_path, title_prefix, xticks):
     
     lines_1, labels_1 = ax1.get_legend_handles_labels()
     lines_2, labels_2 = ax2.get_legend_handles_labels()
-    # Anche qui alzata la legenda
-    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, 
-               loc='upper center', bbox_to_anchor=(0.5, -0.11),
-               fancybox=False, shadow=False, ncol=3, frameon=True)
+    
+    # Anche qui logica divisa se c'è config_info
+    if config_info:
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, 
+                   loc='upper center', bbox_to_anchor=(0.35, -0.12),
+                   fancybox=False, shadow=False, ncol=1, frameon=True)
+        
+        ax1.text(0.65, -0.12, config_info, transform=ax1.transAxes,
+                fontsize=10, verticalalignment='top', horizontalalignment='center',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
+    else:
+        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, 
+                   loc='upper center', bbox_to_anchor=(0.5, -0.12),
+                   fancybox=False, shadow=False, ncol=3, frameon=True)
 
     plt.title(f"{title_prefix} - CommVsComp Breakdown", fontsize=FONTSIZE_TITLE)
     plt.tight_layout()
@@ -214,14 +234,14 @@ def plot_strong_global_breakdown(df_strong, output_path):
         patch = mpatches.Patch(facecolor=c_base, edgecolor='black', label=matrix)
         matrix_handles.append(patch)
     
-    leg1 = ax.legend(handles=matrix_handles, loc='upper left', bbox_to_anchor=(0.05, -0.08),
+    leg1 = ax.legend(handles=matrix_handles, loc='upper center', bbox_to_anchor=(0.35, -0.12),
               ncol=min(n_matrices, 4), title="Matrices", frameon=True)
     ax.add_artist(leg1)
     
     h_comp = mpatches.Patch(facecolor='lightgray', edgecolor='black', label='Computation (Light)')
     h_comm = mpatches.Patch(facecolor='gray', edgecolor='black', label='Communication (Dark)')
     
-    leg2 = ax.legend(handles=[h_comp, h_comm], loc='upper right', bbox_to_anchor=(0.95, -0.08),
+    leg2 = ax.legend(handles=[h_comp, h_comm], loc='upper center', bbox_to_anchor=(0.75, -0.12),
                      title=r"Normalization: Relative to Total Time $T_{1}$", 
                      frameon=True, ncol=1)
 
@@ -242,15 +262,15 @@ def plot_strong_global_breakdown(df_strong, output_path):
 # -------------------------------------------------------------------
 # Main plotting pipeline
 # -------------------------------------------------------------------
-def generate_plots_for_group(df, folder_path, title_prefix, is_weak):
+def generate_plots_for_group(df, folder_path, title_prefix, is_weak, config_info=None):
     df = calculate_metrics(df, is_weak)
     xticks = sorted(df["MPI_Procs"].unique().tolist())
     
-    plot_time(df, folder_path, title_prefix, xticks)
-    plot_speedup(df, folder_path, title_prefix, xticks, is_weak)
-    plot_efficiency(df, folder_path, title_prefix, xticks)
-    plot_gflops(df, folder_path, title_prefix, xticks)
-    plot_comm_vs_comp(df, folder_path, title_prefix, xticks)
+    plot_time(df, folder_path, title_prefix, xticks, config_info)
+    plot_speedup(df, folder_path, title_prefix, xticks, config_info)
+    plot_efficiency(df, folder_path, title_prefix, xticks, config_info)
+    plot_gflops(df, folder_path, title_prefix, xticks, config_info)
+    plot_comm_vs_comp(df, folder_path, title_prefix, xticks, config_info)
 
 def run_analysis():
     current_cwd = Path.cwd()
@@ -307,15 +327,16 @@ def run_analysis():
             else:
                 df_weak["NNZ_Row_Avg"] = 50 
 
+            folder = setup_dirs(plots_root, "weak_scaling")
+
             dims = df_weak["Base_Dim"].unique()
             for dim in dims:
                 subset = df_weak[df_weak["Base_Dim"] == dim].copy()
                 nnz_row = subset["NNZ_Row_Avg"].iloc[0]
                 print(f"   -> Weak Config: {dim} Rows/Proc, {nnz_row} NNZ/Row")
-                folder_name = f"{dim}_Rows"
-                folder = setup_dirs(plots_root / "weak_scaling", folder_name)
-                title = f"Weak Scaling (Rows={dim}, NNZ={nnz_row})"
-                generate_plots_for_group(subset, folder, title, is_weak=True)
+                config_info = f"Weak Scaling Config:\nRows/Proc: {dim}\nNNZ/Row: {nnz_row}"
+                title = "Weak Scaling"
+                generate_plots_for_group(subset, folder, title, is_weak=True, config_info=config_info)
         except Exception as e:
             print(f"ERROR processing weak scaling: {e}")
 
