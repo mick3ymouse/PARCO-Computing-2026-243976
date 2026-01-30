@@ -1,5 +1,7 @@
 # PARCO-Computing-2026-243976
 
+---
+
 # Parallel Sparse Matrix-Vector Multiplication (SpMV)
 
 ![C++](https://img.shields.io/badge/Language-C++-00599C?style=flat-square&logo=c%2B%2B)
@@ -7,7 +9,6 @@
 ![Bash](https://img.shields.io/badge/Script-Bash-4EAA25?style=flat-square&logo=gnu-bash&logoColor=white)
 ![OpenMP](https://img.shields.io/badge/API-OpenMP-blue?style=flat-square)
 ![MPI](https://img.shields.io/badge/API-OpenMPI-green?style=flat-square)
-![HPC](https://img.shields.io/badge/Focus-High%20Performance%20Computing-orange?style=flat-square)
 
 ## Project Overview
 This repository hosts a comprehensive performance analysis of the **Sparse Matrix-Vector Multiplication (SpMV)** kernel, a fundamental operation in scientific computing and engineering.
