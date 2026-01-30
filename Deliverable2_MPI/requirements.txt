@@ -1,0 +1,5 @@
+# Requirements for SparseMatrix Project
+numpy
+scipy
+matplotlib
+pandas

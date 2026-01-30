@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo "==================================================="
-echo "  SparseMatrix: Launch Matrix Conversions Script"
-echo "==================================================="
+echo "========================================="
+echo "  SparseMatrix: Launch Plotting Script"
+echo "========================================="
 
 # ======================================
 # LOAD MODULES
@@ -51,12 +51,12 @@ else
 fi
 
 # Create logs directory if it doesn't exist
-mkdir -p logs/conversion
+mkdir -p logs/plotting
 
-# Submit the conversion job to the scheduler
-echo ">>> Submitting conversion job to the scheduler..."
+# Submit the plotting job to the scheduler
+echo ">>> Submitting plotting job to the scheduler..."
 
-PBS_SCRIPT="scripts/convert_bin.pbs"
+PBS_SCRIPT="scripts/plot.pbs"
 if [ -f "$PBS_SCRIPT" ]; then
     qsub "$PBS_SCRIPT"
 else
@@ -64,4 +64,4 @@ else
     exit 1
 fi
 
-echo ">>> Conversion job submitted."
+echo ">>> Plotting job submitted."

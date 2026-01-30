@@ -1,0 +1,61 @@
+#!/bin/bash
+#PBS -N conv_bin
+#PBS -l select=1:ncpus=4:mem=8gb
+#PBS -l walltime=01:00:00
+#PBS -q shortCPUQ
+#PBS -o logs/conversion/convert_bin.log
+#PBS -e logs/conversion/convert_bin.err
+
+# --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
+# #PBS -m abe
+# #PBS -M your_email@domain.com
+# -------------------------------------------------
+
+
+echo "=========================================="
+echo "  SparseMatrix: Plotting Script"
+echo "=========================================="
+
+# ======================================
+# LOAD MODULES
+# ======================================
+
+echo ">>> Loading required module..."
+
+if ! module list 2>&1 | grep -q "Python/3.11.3-GCCcore-12.3.0"; then
+        echo "    Loading Python/3.11.3-GCCcore-12.3.0..."
+        module load "Python/3.11.3-GCCcore-12.3.0"
+        
+        if [ $? -ne 0 ]; then
+            echo "    ERROR: Failed to load Python/3.11.3-GCCcore-12.3.0."
+            exit 1
+        fi
+else
+    echo "    Python/3.11.3-GCCcore-12.3.0 is already loaded."
+fi
+
+echo ">>> Module loaded successfully."
+
+# ======================================
+# MAIN SCRIPT
+# ======================================
+
+# Change to working directory
+cd $PBS_O_WORKDIR
+
+# Activate virtual environment
+echo ">>> Ensuring .venv is set up..."
+
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+else
+    echo "   .venv not found! Run run_plot.sh first from the login node."
+    exit 1
+fi
+
+# Run the conversion script
+echo ">>> Starting plotting graphs..."
+
+python3 scripts/plot_graphs.py
+
+echo ">>> Conversion completed."

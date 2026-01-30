@@ -1,0 +1,73 @@
+#!/bin/bash
+#PBS -N spmv_ghost_test
+#PBS -l select=1:ncpus=4:mpiprocs=4:mem=4gb
+#PBS -l walltime=00:05:00
+#PBS -q shortCPUQ
+#PBS -o logs/test/strong_test.log
+#PBS -e logs/test/strong_test.err
+
+echo "=========================================="
+echo "  SpMV: Ghost Cell & Correctness Test"
+echo "=========================================="
+
+# 1. SETUP AMBIENTE
+echo ">>> Setting up environment..."
+module purge
+module load gompi/2023a
+
+# Verifica compilatore
+which mpic++
+
+# 2. COMPILAZIONE MANUALE (Per evitare modifiche a CMakeLists.txt)
+cd $PBS_O_WORKDIR
+
+echo ">>> Compiling main_ghost_test.cpp manually..."
+
+mkdir -p build
+
+# Compiliamo direttamente main_ghost_test insieme alle dipendenze (Utils e SparseMatrix)
+# -Isrc : include la cartella src per gli header
+# -std=c++17 : standard C++ recente
+mpic++ -std=c++17 -O3 -march=native -Isrc \
+       src/main_ghost_test.cpp \
+       src/Utils.cpp \
+       src/SparseMatrix.cpp \
+       -o build/spmv_ghost_test_exec
+
+if [ ! -f ./build/spmv_ghost_test_exec ]; then
+    echo "ERROR: Compilation failed!"
+    exit 1
+fi
+
+echo ">>> Compilation Successful."
+echo ""
+
+# 3. ESECUZIONE TEST
+echo ">>> Running Correctness Test..."
+
+MATRICES_ROOT="./matrices"
+
+if [ ! -d "$MATRICES_ROOT" ]; then
+    echo "Error: Directory $MATRICES_ROOT not found!"
+    exit 1
+fi
+
+# Prende la prima matrice disponibile per il test (non serve farle tutte per il debug)
+FIRST_MATRIX=$(ls -d "$MATRICES_ROOT"/* | head -n 1)
+
+if [ -d "$FIRST_MATRIX" ]; then
+    matrix_name=$(basename "$FIRST_MATRIX")
+    echo "=== TESTING WITH MATRIX: $matrix_name ==="
+    echo "Path: $FIRST_MATRIX"
+    
+    # Esecuzione con 4 processi
+    # Manteniamo i flag anti-crash per il cluster UniTN
+    mpirun --mca mpi_cuda_support 0 \
+           --mca btl ^openib \
+           -np 4 ./build/spmv_ghost_test_exec "$FIRST_MATRIX"
+           
+    echo ""
+    echo ">>> Check logs and output files (rank0_dump.txt, x_test.bin, y_test.bin)"
+else
+    echo "No matrix folders found in $MATRICES_ROOT"
+fi
