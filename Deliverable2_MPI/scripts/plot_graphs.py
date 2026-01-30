@@ -161,18 +161,10 @@ def plot_comm_vs_comp(df, output_path, title_prefix, xticks, config_info=None):
     ax1.set_xticklabels(xticks)
     ax1.grid(axis='y', alpha=GRID_ALPHA)
     
-    ax2 = ax1.twinx()
-    ax2.plot(x_indices, comp_times, color=COLOR_TREND, marker="x", 
-             linewidth=2, label="Comp. Time Trend", linestyle="--")
-    ax2.set_ylabel("Computation Time (ms)", fontsize=FONTSIZE_LABELS, color=COLOR_TREND)
-    ax2.tick_params(axis='y', labelcolor=COLOR_TREND)
-    
     lines_1, labels_1 = ax1.get_legend_handles_labels()
-    lines_2, labels_2 = ax2.get_legend_handles_labels()
     
-    # Anche qui logica divisa se c'è config_info
     if config_info:
-        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, 
+        ax1.legend(lines_1, labels_1, 
                    loc='upper center', bbox_to_anchor=(0.35, -0.12),
                    fancybox=False, shadow=False, ncol=1, frameon=True)
         
@@ -180,7 +172,7 @@ def plot_comm_vs_comp(df, output_path, title_prefix, xticks, config_info=None):
                 fontsize=10, verticalalignment='top', horizontalalignment='center',
                 bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='gray'))
     else:
-        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, 
+        ax1.legend(lines_1, labels_1, 
                    loc='upper center', bbox_to_anchor=(0.5, -0.12),
                    fancybox=False, shadow=False, ncol=3, frameon=True)
 
