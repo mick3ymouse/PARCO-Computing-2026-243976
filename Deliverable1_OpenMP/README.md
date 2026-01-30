@@ -1,4 +1,3 @@
-# PARCO-Computing-2026-243976
 # Parallel Computing Project: SpMV with OpenMP
 This repository contains an optimized implementation of the **Sparse Matrix-Vector Multiplication (SpMV)** kernel using the **Compressed Sparse Row (CSR)** format. The project focuses on performance analysis and scalability on shared-memory multicore architectures using **OpenMP**.
 
