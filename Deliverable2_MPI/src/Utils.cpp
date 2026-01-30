@@ -41,6 +41,66 @@ int PartitionLookup::find_owner(int global_col_idx) const {
     return -1; 
 }
 
+void LoadBalanceStats::calculate(const CSRMatrix& mat, const GhostCommunicationPlan& plan, int rank, int size) {
+    // 1. NNZ Statistics
+    long long local_nnz = mat.local_nnz;
+    long long sum_nnz = 0;
+
+    MPI_Reduce(&local_nnz, &nnz_min, 1, MPI_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_nnz, &nnz_max, 1, MPI_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_nnz, &sum_nnz, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    
+    nnz_avg = (double)sum_nnz / size;
+
+    // 2. Communication Volume Statistics
+    // Volume = Elements Sent + Elements Received
+    // This represents the total "network traffic" load for this rank.
+    long long local_comm_vol = 0;
+    
+    // Outgoing volume (sum of send counts)
+    for(int c : plan.send_counts) local_comm_vol += c;
+    
+    // Incoming volume (total ghosts needed)
+    local_comm_vol += plan.total_ghosts_to_recv;
+
+    long long sum_comm = 0;
+
+    MPI_Reduce(&local_comm_vol, &comm_min, 1, MPI_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_comm_vol, &comm_max, 1, MPI_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_comm_vol, &sum_comm, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    comm_avg = (double)sum_comm / size;
+}
+
+void log_load_balance_csv(const string& output_path, const string& matrix_name, int size, 
+                          const LoadBalanceStats& stats, bool is_weak_scaling) {
+    
+    // Check if file exists to write header
+    bool write_header = false;
+    ifstream check_file(output_path);
+    if (check_file.peek() == ifstream::traits_type::eof() || !check_file.good()) {
+        write_header = true;
+    }
+    check_file.close();
+
+    ofstream file(output_path, ios::app);
+    if (!file.is_open()) return;
+
+    if (write_header) {
+        if (!is_weak_scaling) file << "MatrixName,";
+        file << "MPI_Procs,NNZ_min,NNZ_max,NNZ_avg,CommVol_min,CommVol_max,CommVol_avg" << endl;
+    }
+
+    if (!is_weak_scaling) file << matrix_name << ",";
+    
+    file << size << "," 
+         << stats.nnz_min << "," << stats.nnz_max << "," << fixed << setprecision(2) << stats.nnz_avg << ","
+         << stats.comm_min << "," << stats.comm_max << "," << fixed << setprecision(2) << stats.comm_avg 
+         << endl;
+    
+    file.close();
+}
+
 GhostCommunicationPlan setup_ghost_exchange(const CSRMatrix& mat, int rank, int size) {
     GhostCommunicationPlan plan;
 
@@ -299,6 +359,14 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
                                comp_p90 * 1000.0,   // Convert to ms
                                gflops);
     }
+
+    LoadBalanceStats lb_stats;
+    lb_stats.calculate(mat, plan, rank, size);
+    
+    if (rank == 0) {
+        string lb_output_path = "results/load_balance_strong.csv"; 
+        log_load_balance_csv(lb_output_path, matrix_name, size, lb_stats, false);
+    }
 }
 
 CSRMatrix generate_synthetic_matrix(int local_rows, int total_cols, int nnz_per_row, int rank) {
@@ -503,5 +571,13 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local,
                              comm_p90 * 1000.0,    // Convert to ms
                              comp_p90 * 1000.0,    // Convert to ms
                              gflops);
+    }
+
+    LoadBalanceStats lb_stats;
+    lb_stats.calculate(mat, plan, rank, size);
+    
+    if (rank == 0) {
+        string lb_output_path = "results/load_balance_weak.csv";
+        log_load_balance_csv(lb_output_path, "", size, lb_stats, true);
     }
 }

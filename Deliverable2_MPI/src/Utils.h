@@ -99,6 +99,39 @@ struct PartitionLookup {
 };
 
 /**
+ * @brief Struct to hold Load Balance metrics.
+ * Includes NNZ distribution and communication volume statistics.
+ */
+struct LoadBalanceStats {
+    long long nnz_min, nnz_max;
+    double nnz_avg;
+    
+    long long comm_min, comm_max; 
+    double comm_avg;
+
+    /**
+     * @brief Computes Load Balance statistics (NNZ distribution and Comm Volume).
+     * Performs MPI Reductions to find min, max, and avg across all ranks.
+     * @param mat The local CSR matrix (to check NNZ).
+     * @param plan The communication plan (to check Comm Volume).
+     * @param rank MPI Rank.
+     * @param size MPI Size.
+     */
+    void calculate(const CSRMatrix& mat, const GhostCommunicationPlan& plan, int rank, int size);
+};
+
+/**
+ * @brief Logs Load Balance stats to a CSV file.
+ * @param output_path Path to the CSV output file.
+ * @param matrix_name Name of the matrix (for logging).
+ * @param size Number of MPI processes.
+ * @param stats The Load Balance statistics to log.
+ * @param is_weak_scaling Flag indicating if the test was weak scaling (affects CSV format).
+ */
+void log_load_balance_csv(const string& output_path, const string& matrix_name, int size, 
+                          const LoadBalanceStats& stats, bool is_weak_scaling);
+
+/**
  * @brief Sets up the ghost exchange communication plan for a given CSR matrix.
  * Analyzes the matrix to determine which off-rank data is needed for SpMV.
  * @param mat The local CSR matrix partition.
