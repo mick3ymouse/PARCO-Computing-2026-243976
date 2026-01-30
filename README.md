@@ -7,7 +7,7 @@
 ![MPI](https://img.shields.io/badge/API-OpenMPI-green?style=flat-square)
 ![HPC](https://img.shields.io/badge/Focus-High%20Performance%20Computing-orange?style=flat-square)
 
-## 📌 Project Overview
+## Project Overview
 This repository hosts a comprehensive performance analysis of the **Sparse Matrix-Vector Multiplication (SpMV)** kernel, a fundamental operation in scientific computing and engineering.
 
 The project explores parallelization strategies across two distinct memory architectures:
@@ -18,7 +18,7 @@ The goal is to evaluate scalability, computational efficiency, and the impact of
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 .
