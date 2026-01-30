@@ -7,7 +7,7 @@ It focuses on Strong and Weak scaling analysis, alongside different metrics for 
 
 ## Prerequisites
 
-The project is designed to be executed in a **Linux environment** (specifically an HPC Cluster with PBS/Slurm).
+The project is designed to be executed in a **Linux environment** (specifically an HPC Cluster with PBS).
 
 * **MPI Implementation:** `gompi` toolchain (GCC + OpenMPI) or equivalent.
 * **Build System:** `CMake` (>= 3.26) and `Make`.
@@ -106,3 +106,4 @@ If you need to change the queue name, walltime, or resource allocation (e.g., nu
 Use standard cluster commands to check the status of your jobs:
 ```bash
 qstat -u <your_username>
+
