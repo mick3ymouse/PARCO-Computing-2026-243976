@@ -76,29 +76,33 @@ void LoadBalanceStats::calculate(const CSRMatrix& mat, const GhostCommunicationP
 void log_load_balance_csv(const string& output_path, const string& matrix_name, int size, 
                           const LoadBalanceStats& stats, bool is_weak_scaling) {
     
-    // Check if file exists to write header
+    // 1. Check if file exists to write header
     bool write_header = false;
     ifstream check_file(output_path);
+
+    // If file does not exist or is empty, we need to write the header
     if (check_file.peek() == ifstream::traits_type::eof() || !check_file.good()) {
         write_header = true;
     }
     check_file.close();
 
+    // 2. Open file in Append Mode
     ofstream file(output_path, ios::app);
     if (!file.is_open()) return;
 
+    // 3. Write Header if needed
     if (write_header) {
         if (!is_weak_scaling) file << "MatrixName,";
         file << "MPI_Procs,NNZ_min,NNZ_max,NNZ_avg,CommVol_min,CommVol_max,CommVol_avg" << endl;
     }
 
+    // 4. Write Data Row
     if (!is_weak_scaling) file << matrix_name << ",";
     
     file << size << "," 
          << stats.nnz_min << "," << stats.nnz_max << "," << fixed << setprecision(2) << stats.nnz_avg << ","
          << stats.comm_min << "," << stats.comm_max << "," << fixed << setprecision(2) << stats.comm_avg 
          << endl;
-    
     file.close();
 }
 

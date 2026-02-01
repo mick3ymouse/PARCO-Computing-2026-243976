@@ -58,6 +58,12 @@ cd .. # Return to project root
 mkdir -p logs/strong_scaling
 mkdir -p logs/weak_scaling
 
+# Delete old results files
+rm -f results/strong_scaling.csv
+rm -f results/weak_scaling.csv
+rm -f results/load_balance_strong.csv 
+rm -f results/load_balance_weak.csv
+
 # ======================================
 # MAIN SCRIPT
 # ======================================

@@ -54,13 +54,12 @@ echo ""
 # Define the benchmark results file
 BENCH_FILE="results/weak_scaling.csv"
 mkdir -p results
-rm -f $BENCH_FILE
 echo "   Saving results to: $BENCH_FILE"
 echo ""
 
 # Weak Scaling Parameters
 BASE_ROWS=100000   # Each core will always have 100k rows
-NNZ_ROW=50        # Fixed density
+NNZ_ROW=50         # Fixed density
 
 # Execute weak scaling tests for different process counts
 for P in 1 2 4 8 16 32 64 128; do
