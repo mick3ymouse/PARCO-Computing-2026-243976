@@ -37,3 +37,10 @@ spmv_weak_exec
 venv/
 env/
 
+# Ignore test files
+verify_strong.py
+verify_weak.py
+run_test_strong.pbs
+run_test_weak.pbs
+main_ghost_test.cpp
+main_test_weak.cpp
