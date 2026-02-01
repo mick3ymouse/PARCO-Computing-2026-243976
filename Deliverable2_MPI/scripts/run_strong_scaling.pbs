@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N spmv_strong
 #PBS -l select=2:ncpus=96:mpiprocs=96:mem=32gb
-#PBS -l walltime=02:00:00
+#PBS -l walltime=00:45:00
 #PBS -q shortCPUQ
 #PBS -o logs/strong_scaling/strong_scaling.log
 #PBS -e logs/strong_scaling/strong_scaling.err
@@ -49,6 +49,7 @@ cd $PBS_O_WORKDIR
 
 # Start Strong Scaling Test
 echo ">>> Starting Strong Scaling Tests..."
+echo ""
 
 # Define the benchmark results file
 BENCH_FILE="results/strong_scaling.csv"

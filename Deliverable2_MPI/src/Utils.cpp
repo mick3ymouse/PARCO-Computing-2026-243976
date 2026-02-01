@@ -252,7 +252,7 @@ void run_strong_scaling(const CSRMatrix& mat, const vector<double>& x_local,
     vector<MPI_Request> reqs;
     reqs.reserve(size * 2);
 
-    const int N_RUNS = 10;
+    const int N_RUNS = 100;
 
     // Vectors to store separate timings
     vector<double> run_times_total;
@@ -465,7 +465,7 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local,
     vector<MPI_Request> reqs;
     reqs.reserve(size * 2);
 
-    const int N_RUNS = 10;
+    const int N_RUNS = 100;
 
     // Vectors to store separate timings
     vector<double> run_times_total;
