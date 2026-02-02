@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N conv_bin
+#PBS -N spmv_plot
 #PBS -l select=1:ncpus=4:mem=8gb
 #PBS -l walltime=01:00:00
 #PBS -q shortCPUQ
