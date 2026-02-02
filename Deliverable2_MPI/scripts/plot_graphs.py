@@ -208,7 +208,7 @@ def plot_load_balance_comm(df, output_path, title_prefix, xticks, config_info=No
     
     imbalance_ratio = df["CommVol_max"] / df["CommVol_avg"]
     
-    plt.plot(x_indices, imbalance_ratio, marker="s", linewidth=LINEWIDTH, 
+    plt.plot(x_indices, imbalance_ratio, marker="o", linewidth=LINEWIDTH, 
              markersize=MARKERSIZE, color=COLOR_LB_COMM, label="Imbalance Ratio (Max/Avg)")
     
     finalize_plot(plt.gca(), "MPI Processes", "Comm. Vol. Imbalance", 
