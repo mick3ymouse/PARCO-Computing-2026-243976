@@ -20,9 +20,15 @@ FONTSIZE_TITLE = 14
 DPI = 600
 FONT_FAMILY = "serif"
 
-COLOR_COMP_STD = "#80b1d3"
+COLOR_TIME = "#1f77b4"
+COLOR_SPEEDUP = "#ff7700"
+COLOR_EFFICIENCY = "#2ca02c"
+COLOR_GFLOPS = "#d463e6"
+COLOR_COMP_STD = "#429fe2"
 COLOR_COMM_STD = "#fdb462"
 COLOR_TREND = "#d62728"
+COLOR_LB_NNZ = "#8222dd"
+COLOR_LB_COMM = "#0ED5FD"
 
 plt.rcParams['font.family'] = FONT_FAMILY
 plt.rcParams['mathtext.fontset'] = 'cm'
@@ -107,7 +113,7 @@ def plot_time(df, output_path, title_prefix, xticks, config_info=None):
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Time_P90_ms"], marker=MARKER, linewidth=LINEWIDTH, 
-             markersize=MARKERSIZE, label="Total Time (P90)")
+             markersize=MARKERSIZE, label="Total Time (P90)", color=COLOR_TIME)
     
     finalize_plot(plt.gca(), "MPI Processes", "Time (ms)", 
                   f"{title_prefix} - Execution Time", 
@@ -118,7 +124,7 @@ def plot_speedup(df, output_path, title_prefix, xticks, config_info=None):
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Speedup"], marker=MARKER, linewidth=LINEWIDTH, 
-             markersize=MARKERSIZE, label="Measured Speedup", color="tab:blue")
+             markersize=MARKERSIZE, label="Measured Speedup", color=COLOR_SPEEDUP)
     
     finalize_plot(plt.gca(), "MPI Processes", "Speedup", 
                   f"{title_prefix} - Speedup", 
@@ -129,7 +135,7 @@ def plot_efficiency(df, output_path, title_prefix, xticks, config_info=None):
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["Efficiency"], marker=MARKER, linewidth=LINEWIDTH, 
-             markersize=MARKERSIZE, color="tab:green", label="Efficiency (%)")
+             markersize=MARKERSIZE, color=COLOR_EFFICIENCY, label="Efficiency (%)")
     
     finalize_plot(plt.gca(), "MPI Processes", "Efficiency (%)", 
                   f"{title_prefix} - Efficiency", 
@@ -140,7 +146,7 @@ def plot_gflops(df, output_path, title_prefix, xticks, config_info=None):
     proc_to_idx = {val: i for i, val in enumerate(xticks)}
     x_indices = df["MPI_Procs"].map(proc_to_idx)
     plt.plot(x_indices, df["GFLOPS"], marker=MARKER, linewidth=LINEWIDTH, 
-             markersize=MARKERSIZE, color="tab:red", label="GFLOPS")
+             markersize=MARKERSIZE, color=COLOR_GFLOPS, label="GFLOPS")
 
     finalize_plot(plt.gca(), "MPI Processes", "GFLOPS", 
                   f"{title_prefix} - Throughput", 
@@ -181,6 +187,34 @@ def plot_comm_vs_comp(df, output_path, title_prefix, xticks, config_info=None):
     plt.savefig(output_path / f"4_{title_prefix.replace(' ', '_')}_commVScomp.png", dpi=DPI, bbox_inches='tight')
     plt.close()
 
+def plot_load_balance_nnz(df, output_path, title_prefix, xticks, config_info=None):
+    plt.figure(figsize=(10, 7))
+    proc_to_idx = {val: i for i, val in enumerate(xticks)}
+    x_indices = df["MPI_Procs"].map(proc_to_idx)
+    
+    imbalance_ratio = df["NNZ_max"] / df["NNZ_avg"]
+    
+    plt.plot(x_indices, imbalance_ratio, marker=MARKER, linewidth=LINEWIDTH, 
+             markersize=MARKERSIZE, color=COLOR_LB_NNZ, label="Imbalance Ratio (Max/Avg)")
+    
+    finalize_plot(plt.gca(), "MPI Processes", "NNZ Imbalance", 
+                  f"{title_prefix} - Computational Load Imbalance", 
+                  output_path / f"5_{title_prefix.replace(' ', '_')}_lb_nnz.png", xticks, config_info)
+
+def plot_load_balance_comm(df, output_path, title_prefix, xticks, config_info=None):
+    plt.figure(figsize=(10, 7))
+    proc_to_idx = {val: i for i, val in enumerate(xticks)}
+    x_indices = df["MPI_Procs"].map(proc_to_idx)
+    
+    imbalance_ratio = df["CommVol_max"] / df["CommVol_avg"]
+    
+    plt.plot(x_indices, imbalance_ratio, marker="s", linewidth=LINEWIDTH, 
+             markersize=MARKERSIZE, color=COLOR_LB_COMM, label="Imbalance Ratio (Max/Avg)")
+    
+    finalize_plot(plt.gca(), "MPI Processes", "Comm. Vol. Imbalance", 
+                  f"{title_prefix} - Communication Load Imbalance", 
+                  output_path / f"6_{title_prefix.replace(' ', '_')}_lb_comm.png", xticks, config_info)
+
 def plot_strong_global_breakdown(df_strong, output_path):
     matrices = sorted(df_strong["MatrixName"].unique())
     procs = sorted(df_strong["MPI_Procs"].unique())
@@ -201,7 +235,7 @@ def plot_strong_global_breakdown(df_strong, output_path):
         
         t1_row = subset[subset["MPI_Procs"] == 1]
         if t1_row.empty:
-            t_ref = subset["Time_P90_ms"].max()
+            t_ref = subset[subset["MPI_Procs"] == subset["MPI_Procs"].min()]["Time_P90_ms"].values[0]
         else:
             t_ref = t1_row["Time_P90_ms"].values[0]
 
@@ -227,7 +261,7 @@ def plot_strong_global_breakdown(df_strong, output_path):
         matrix_handles.append(patch)
     
     leg1 = ax.legend(handles=matrix_handles, loc='upper center', bbox_to_anchor=(0.35, -0.12),
-              ncol=min(n_matrices, 4), title="Matrices", frameon=True)
+              ncol= 3, title="Matrices", frameon=True)
     ax.add_artist(leg1)
     
     h_comp = mpatches.Patch(facecolor='lightgray', edgecolor='black', label='Computation (Light)')
@@ -264,6 +298,15 @@ def generate_plots_for_group(df, folder_path, title_prefix, is_weak, config_info
     plot_gflops(df, folder_path, title_prefix, xticks, config_info)
     plot_comm_vs_comp(df, folder_path, title_prefix, xticks, config_info)
 
+def generate_lb_plots_for_group(df, folder_path, title_prefix, config_info=None):
+    xticks = sorted(df["MPI_Procs"].unique().tolist())
+    
+    if "NNZ_max" in df.columns:
+        plot_load_balance_nnz(df, folder_path, title_prefix, xticks, config_info)
+    
+    if "CommVol_max" in df.columns:
+        plot_load_balance_comm(df, folder_path, title_prefix, xticks, config_info)
+
 def run_analysis():
     current_cwd = Path.cwd()
     
@@ -281,12 +324,15 @@ def run_analysis():
     
     strong_file = results_root / "strong_scaling.csv"
     weak_file = results_root / "weak_scaling.csv"
+    lb_strong_file = results_root / "load_balance_strong.csv"
+    lb_weak_file = results_root / "load_balance_weak.csv"
     
     found_any = False
 
+    # --- Strong Scaling Processing ---
     if strong_file.exists():
         found_any = True
-        print(">>> Processing Strong Scaling...")
+        print(">>> Processing Strong Scaling (Perf)...")
         try:
             df_strong = pd.read_csv(strong_file)
             df_strong.columns = df_strong.columns.str.strip()
@@ -306,9 +352,29 @@ def run_analysis():
         except Exception as e:
             print(f"ERROR processing strong scaling: {e}")
 
+    # --- Strong Scaling Load Balance ---
+    if lb_strong_file.exists():
+        print(">>> Processing Strong Scaling (Load Balance)...")
+        try:
+            df_lb = pd.read_csv(lb_strong_file)
+            df_lb.columns = df_lb.columns.str.strip()
+            df_lb["MatrixName"] = df_lb["MatrixName"].astype(str).str.replace("_bin", "").str.replace(".mtx", "")
+            
+            strong_root = setup_dirs(plots_root, "strong_scaling")
+            matrices = df_lb["MatrixName"].unique()
+            for matrix in matrices:
+                print(f"   -> Matrix: {matrix}")
+                safe_name = matrix.replace(".", "_")
+                folder = setup_dirs(strong_root, safe_name)
+                subset = df_lb[df_lb["MatrixName"] == matrix].copy()
+                generate_lb_plots_for_group(subset, folder, str(matrix))
+        except Exception as e:
+            print(f"ERROR processing strong load balance: {e}")
+
+    # --- Weak Scaling Processing ---
     if weak_file.exists():
         found_any = True
-        print(">>> Processing Weak Scaling...")
+        print(">>> Processing Weak Scaling (Perf)...")
         try:
             df_weak = pd.read_csv(weak_file)
             df_weak.columns = df_weak.columns.str.strip()
@@ -320,7 +386,7 @@ def run_analysis():
                 df_weak["NNZ_Row_Avg"] = 50 
 
             folder = setup_dirs(plots_root, "weak_scaling")
-
+            
             dims = df_weak["Base_Dim"].unique()
             for dim in dims:
                 subset = df_weak[df_weak["Base_Dim"] == dim].copy()
@@ -331,6 +397,18 @@ def run_analysis():
                 generate_plots_for_group(subset, folder, title, is_weak=True, config_info=config_info)
         except Exception as e:
             print(f"ERROR processing weak scaling: {e}")
+
+    # --- Weak Scaling Load Balance ---
+    if lb_weak_file.exists():
+        print(">>> Processing Weak Scaling (Load Balance)...")
+        try:
+            df_lb_weak = pd.read_csv(lb_weak_file)
+            df_lb_weak.columns = df_lb_weak.columns.str.strip()
+            folder = setup_dirs(plots_root, "weak_scaling")
+            title = "Weak Scaling"
+            generate_lb_plots_for_group(df_lb_weak, folder, title)
+        except Exception as e:
+            print(f"ERROR processing weak load balance: {e}")
 
     if not found_any:
         print("\nNO RESULTS PROCESSED. Check your paths.")

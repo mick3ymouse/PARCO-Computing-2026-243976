@@ -564,8 +564,8 @@ void run_weak_scaling(const CSRMatrix& mat, const vector<double>& x_local,
         double comm_p90 = run_times_comm[p90_idx];
         double comp_p90 = run_times_comp[p90_idx];
 
-        // Calcolo GFLOPS
-        // GFLOPS = (2 * NNZ Totali) / (Tempo in secondi * 10^9)
+        // Calculate GFLOPS
+        // GFLOPS = (2 * Total NNZ) / (Time in seconds * 10^9)
         double gflops = (2.0 * static_cast<double>(total_nnz)) / (time_p90 * 1.0e9);
         
         int total_rows = rows_per_proc * size;
