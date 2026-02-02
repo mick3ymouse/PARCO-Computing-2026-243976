@@ -3,8 +3,8 @@
 #PBS -l select=1:ncpus=4:mem=8gb
 #PBS -l walltime=01:00:00
 #PBS -q shortCPUQ
-#PBS -o logs/conversion/convert_bin.log
-#PBS -e logs/conversion/convert_bin.err
+#PBS -o logs/plotting/plot_graphs.log
+#PBS -e logs/plotting/plot_graphs.err
 
 # --- EMAIL NOTIFICATIONS (Uncomment to enable) ---
 # #PBS -m abe
@@ -58,4 +58,4 @@ echo ">>> Starting plotting graphs..."
 
 python3 scripts/plot_graphs.py
 
-echo ">>> Conversion completed."
+echo ">>> Plotting completed."
