@@ -1,9 +1,9 @@
 ============================================================
   HPC BENCHMARK - SYSTEM & EXECUTION SUMMARY
 ============================================================
-Date:             Mon Jan 26 12:15:53 PM CET 2026
-Hostname:         hpc3-c12-n37.unitn.it
-OS / Kernel:      Rocky Linux 9.7 (Blue Onyx) (5.14.0-611.11.1.el9_7.x86_64)
+Date:             Sun Feb  1 02:03:19 PM CET 2026
+Hostname:         hpc3-c12-n34.unitn.it
+OS / Kernel:      Rocky Linux 9.7 (Blue Onyx) (5.14.0-611.9.1.el9_7.x86_64)
 
 ------------------------------------------------------------
   COMPUTING RESOURCES (CPU/RAM)
@@ -14,7 +14,7 @@ Total Sockets:    4
 Cores per Socket: 24
 Total Phys Cores: 96
 L3 Cache:         143 MiB (4 instances)
-Total Memory:     502Gi
+Total Memory:     2.0Ti
 
 ------------------------------------------------------------
   INTERCONNECT TOPOLOGY (NETWORK)
