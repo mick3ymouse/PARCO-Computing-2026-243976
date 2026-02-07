@@ -4,7 +4,7 @@ This project does not store the test matrices in the repository due to their siz
 
 The data used for the benchmarks can be downloaded from:
 
-**Regular:**
+**Structured:**
 
 https://sparse.tamu.edu/Bourchtein/atmosmodd
 
@@ -12,7 +12,7 @@ https://sparse.tamu.edu/Norris/torso1
 
 https://sparse.tamu.edu/FEMLAB/poisson3Db
 
-**Irregular:**
+**Unstructured:**
 
 https://sparse.tamu.edu/Freescale/memchip
 
