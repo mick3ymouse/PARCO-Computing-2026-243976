@@ -17,11 +17,11 @@ struct CSRMatrix {
 
     // CSR Vectors (Local slice)
     vector<int> row_ptr;     // Size: local_rows + 1
-    vector<int> col_ind;     // Contiene SOLO indici locali: [0 ... local_rows + n_ghosts - 1]
+    vector<int> col_ind;     // Contains ONLY local indices: [0 ... local_rows + n_ghosts - 1]
     vector<double> values;   // Size: local_nnz
 
-    // Mappatura per i Ghost
-    // L'elemento locale (local_rows + i) corrisponde all'ID Globale ghost_ids[i]
+    // Ghost mapping:
+    // The local element (local_rows + i) corresponds to the Global ID ghost_ids[i]
     vector<int> ghost_ids; 
 
     /**

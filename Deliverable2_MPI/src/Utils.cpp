@@ -120,7 +120,7 @@ GhostCommunicationPlan setup_ghost_exchange(const CSRMatrix& mat, int rank, int 
     
     for (size_t i = 0; i < mat.ghost_ids.size(); ++i) {
         int global_ghost_id = mat.ghost_ids[i];
-        int target_local_idx = mat.local_rows + i; // Dove lo metterò nel mio vettore
+        int target_local_idx = mat.local_rows + i; // Where I will place it in my vector
 
         int owner = lookup.find_owner(global_ghost_id);
         if (owner != -1 && owner != rank) {
