@@ -27,6 +27,7 @@ The goal is to evaluate scalability, computational efficiency, and the impact of
 .
 ├── Deliverable1_OpenMP/    # Shared Memory Implementation (OpenMP)
 ├── Deliverable2_MPI/       # Distributed Memory Implementation (MPI)
+├── .gitignore
 └── README.md
 ```
 
